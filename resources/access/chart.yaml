@@ -1,0 +1,15 @@
+apiVersion: v2
+name: helm-access
+description: A Helm chart for deploying AWS S3 bucket and CloudFront distribution resources using AWS Controllers for Kubernetes.
+type: application
+version: 0.1.0
+appVersion: "1.0"
+dependencies:
+  - name: aws-controllers-k8s-s3
+    repository: https://github.com/aws-controllers-k8s/s3-controller/
+    Version: 1.0.28
+    condition: s3.enabled
+  - name: aws-controllers-k8s-cloudfront
+    repository: https://github.com/aws-controllers-k8s/cloudfront-controller/
+    version: 1.0.9
+    condition: cloudfront.enabled

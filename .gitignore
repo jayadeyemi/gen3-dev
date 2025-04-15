@@ -1,4 +1,4 @@
 *.code-workspace
 .git
 .vscode
-*.{pem,ppk}
+**/*.ppk

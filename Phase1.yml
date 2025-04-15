@@ -29,7 +29,7 @@ Parameters:
   Subnet2AZ:
     Type: String
     Description: Availability Zone for the second public subnet
-    Default: us-east-1b
+    Default: us-east-1a
     AllowedValues:
       - ---------- 
       - us-east-1a
@@ -176,6 +176,29 @@ Metadata:
         default: "Key Pair Name for Public Instances"
 
 Resources:
+  # IAM Role for the EC2 instance with full administrative access
+  LabInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref EC2InstanceProfile
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  # Instance Profile that is associated with the IAM Role
+  LabInstanceProfileResource:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Ref EC2InstanceProfile
+      Roles:
+        - !Ref LabInstanceRole
+
   MainVPC:
     Type: AWS::EC2::VPC
     Properties:

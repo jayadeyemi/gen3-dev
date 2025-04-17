@@ -1,0 +1,8 @@
+apiVersion: s3.services.k8s.aws/v1alpha1
+kind: Bucket
+metadata:
+  name: my-s3-bucket
+  namespace: default
+spec:
+  bucketName: test-bucket-name-9658
+  region: us-east-1

@@ -1,0 +1,25 @@
+# GLOBAL AWS REGION for all controllers
+aws:
+  region: us-east-1
+
+# S3 controller settings
+s3:
+  enabled: true
+  aws:
+    region: us-east-1
+  reconcile:
+    # every 300 seconds for all S3 kinds (e.g. Bucket)
+    defaultResyncPeriod: 300
+    resourceResyncPeriods:
+      Bucket: 300
+
+# EC2 (VPC) controller settings
+ec2:
+  enabled: true
+  aws:
+    region: us-east-1
+  reconcile:
+    # every 500 seconds for all EC2 kinds (e.g. VPC)
+    defaultResyncPeriod: 500
+    resourceResyncPeriods:
+      VPC: 500

@@ -1,0 +1,11 @@
+apiVersion: ec2.services.k8s.aws/v1alpha1
+kind: VPC
+metadata:
+  name: my-test-vpc
+  namespace: default
+spec:
+  cidrBlock: "192.168.0.0/16"
+  instanceTenancy: default
+  tags:
+    Name: test-vpc
+    Environment: test

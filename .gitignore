@@ -4,3 +4,4 @@
 **/*.ppk
 /logs
 **/*.pem
+**/variables.env

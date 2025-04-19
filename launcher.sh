@@ -27,7 +27,7 @@ RESPONSE_LOG="$(dirname "$0")/logs/response.log"
 VARIABLES_LOG="$(dirname "$0")/logs/created_resourses.log"
 
 #Data files
-USER_DATA_FILE_V1="$(dirname "$0")/basic_ack_test/scripts/setup-single-node.sh"
+USER_DATA_FILE_V1="$(dirname "$0")/basic_ack_test/scripts/user_data.sh"
 
 # Phase scripts
 PHASE_1_SCRIPT="$(dirname "$0")/env/phase1.sh"

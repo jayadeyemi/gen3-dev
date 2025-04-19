@@ -15,11 +15,6 @@ else
   exit 1
 fi
 
-#!/usr/bin/env bash
-set -euo pipefail
-
-
-
 # 1. Install container runtime & Kubernetes tools
 if [[ "$DISTRO" == "amzn" ]]; then
   # Amazon Linux 2
@@ -87,9 +82,7 @@ kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
 # 8. Allow workloads on the control plane (for single‑node clusters)
 kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
 
-# 89 Print the join command for worker nodes
-echo
-echo "================================================================"
-echo "Control plane is ready. On each worker node, run:"
-kubeadm token create --print-join-command
-echo "================================================================"
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    chmod 700 get_helm.sh
+    ./get_helm.sh
+

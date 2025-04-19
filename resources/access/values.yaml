@@ -1,5 +1,0 @@
-# S3 and CloudFront configuration values
-accessUrl: "jimisbucket7568"
-accessCert: "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-region: "us-east-1"
-s3WebsiteEndpoint: "jimisbucket7568.s3-website-us-east-1.amazonaws.com"

@@ -251,11 +251,6 @@ if [[ $status -eq 0 ]]; then
     status=$?
 fi
 
-#!/usr/bin/env bash
-set -euo pipefail
-
-# … (your earlier logic that sets status, PUB_KEY, INSTANCE_PUBLIC_IP) …
-
 if [[ $status -eq 0 ]]; then
     SSH_FILE="$(dirname "$0")/SSH_code.sh"
     EC2_HOST="ec2-${INSTANCE_PUBLIC_IP//./-}.compute-1.amazonaws.com"

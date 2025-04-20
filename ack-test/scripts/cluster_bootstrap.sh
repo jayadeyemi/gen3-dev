@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(dirname "$0")/lib/common.sh"
-source "$(dirname "$0")/scripts/etc/config.sh"
-
 MODE="${MODE:-single}"  # default to single-node unless explicitly overridden
 log INFO "Cluster bootstrap mode: $MODE"
 
@@ -24,21 +21,16 @@ if [[ "$MODE" == "eks" ]]; then
   log INFO "Configuring kubectl for EKS cluster"
   aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME"
 
-  log INFO "Installing Helm"
-  if ! command -v helm &>/dev/null; then
-    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-    chmod +x get_helm.sh && ./get_helm.sh
-  fi
-  log INFO "EKS setup complete"
+
 else
   log INFO "Installing single-node Kubernetes (Ubuntu or Amazon Linux)"
 
-  if [[ "$ID" == "amzn" || "$ID_LIKE" =~ rhel ]]; then
+  if [[ "$managed_OS" == "amzn" || "$ID_LIKE" =~ rhel ]]; then
     DISTRO="amzn"
-  elif [[ "$ID" == "debian" ]]; then
+  elif [[ "$managed_OS" == "debian" ]]; then
     DISTRO="debian"
   else
-    echo "Unsupported distro: $ID"
+    echo "Unsupported distro: $managed_OS"
     exit 1
   fi
 
@@ -79,17 +71,22 @@ EOF
     --upload-certs \
     --control-plane-endpoint "${LOCAL_IP}:6443"
 
-  mkdir -p "$HOME/.kube"
-  sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
-  sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
+  mkdir -p "~/.kube"
+  sudo cp /etc/kubernetes/admin.conf "~/.kube/config"
+  sudo chown "$(id -u):$(id -g)" "~/.kube/config"
 
   kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
   kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
 
-  curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-  chmod +x get_helm.sh
-  ./get_helm.sh
-  rm get_helm.sh
-
   log INFO "Single-node Kubernetes setup complete"
 fi
+
+if ! command -v helm &>/dev/null; then
+  log INFO "Installing Helm..."
+  curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+  chmod +x get_helm.sh && ./get_helm.sh
+  # rm get_helm.sh
+fi
+log INFO "Kuberetes setup complete"
+
+export LOCAL_IP

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/lib/common.sh"
+source "$(dirname "$0")/scripts/etc/config.sh"
 
 MODE="${MODE:-single}"  # default to single-node unless explicitly overridden
 log INFO "Cluster bootstrap mode: $MODE"
@@ -15,20 +16,27 @@ if [[ "$MODE" == "eks" ]]; then
       --name "$CLUSTER_NAME" \
       --region "$AWS_REGION" \
       --nodes 2 \
+      --with-oidc \
       --managed
   else
     log INFO "EKS cluster already exists"
   fi
+  log INFO "Configuring kubectl for EKS cluster"
+  aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME"
 
+  log INFO "Installing Helm"
+  if ! command -v helm &>/dev/null; then
+    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    chmod +x get_helm.sh && ./get_helm.sh
+  fi
   log INFO "EKS setup complete"
 else
   log INFO "Installing single-node Kubernetes (Ubuntu or Amazon Linux)"
 
-  source /etc/os-release
   if [[ "$ID" == "amzn" || "$ID_LIKE" =~ rhel ]]; then
     DISTRO="amzn"
-  elif [[ "$ID" == "ubuntu" ]]; then
-    DISTRO="ubuntu"
+  elif [[ "$ID" == "debian" ]]; then
+    DISTRO="debian"
   else
     echo "Unsupported distro: $ID"
     exit 1
@@ -41,7 +49,7 @@ else
     sudo yum install -y kubelet kubeadm kubectl
   else
     sudo apt-get update -y
-    sudo apt-get install -y containerd
+    sudo apt-get install -y containerd 
     sudo mkdir -p /etc/containerd
     sudo containerd config default | sudo tee /etc/containerd/config.toml
     sudo systemctl enable --now containerd

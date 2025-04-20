@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Global values
+AWS_REGION="us-east-1"
+EKS_CLUSTER_NAME="my-cluster"
+ACK_SYSTEM_NAMESPACE="ack-system"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")/.."
 
 # Load env once everywhere
-if [[ -f "$ROOT_DIR/env/config.env" ]]; then
+if [[ -f "$ROOT_DIR/scripts/etc/config.env" ]]; then
   # shellcheck disable=SC1091
-  source "$ROOT_DIR/env/config.env"
+  source "$ROOT_DIR/scripts/etc/config.env"
 else
   echo "env/config.env missing"; exit 1
 fi

@@ -8,7 +8,7 @@ if [[ -z "$MODE" ]]; then
 fi
 
 if [[ -z "$deployment_mode" ]]; then
-  deployment_mode=$(yq e '.deployment_mode' "$(dirname "${BASH_SOURCE[0]}")/values.yaml")
+  deployment_mode=$(yq e '.deploymentType' "$(dirname "${BASH_SOURCE[0]}")/values.yaml")
 fi
 
 if [[ "$deployment_mode" != "deployment-vpc" ]]; then

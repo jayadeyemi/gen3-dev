@@ -21,11 +21,4 @@ description: Install ACK controllers + demo S3 & VPC custom resources
 type: application
 version: 0.1.0
 
-# Sub‑charts resolved at install‑time from ECR OCI registry
-dependencies:
-{{- range $svc := (split "," .Values.controllers) }}
-  - name: {{ $svc }}-chart
-    alias: {{ $svc }}
-    version: {{ $.Values.chartVersion }}
-    repository: "oci://public.ecr.aws/aws-controllers-k8s/{{ $svc }}-chart"
-{{- end }}
+

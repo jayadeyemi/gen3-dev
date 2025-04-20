@@ -22,12 +22,12 @@ KEY_PATH="$(dirname "$0")/env/keys/"
 
 # Log files
 mkdir -p $(dirname "$0")/logs/
-EXECUTION_LOG="$(dirname "$0")/logs/execution.log"
-RESPONSE_LOG="$(dirname "$0")/logs/response.log"
-VARIABLES_LOG="$(dirname "$0")/logs/created_resourses.log"
+EXECUTION_LOG="$(dirname "$0")/output/execution.log"
+RESPONSE_LOG="$(dirname "$0")/output/response.log"
+VARIABLES_LOG="$(dirname "$0")/output/created_resourses.log"
 
 #Data files
-USER_DATA_FILE_V1="$(dirname "$0")/basic_ack_test/scripts/user_data.sh"
+USER_DATA_FILE_V1="$(dirname "$0")/ack-deploy-system/deploy.sh"
 
 # Phase scripts
 PHASE_1_SCRIPT="$(dirname "$0")/env/phase1.sh"

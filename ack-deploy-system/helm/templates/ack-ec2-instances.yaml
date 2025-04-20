@@ -1,0 +1,9 @@
+apiVersion: ec2.services.k8s.aws/v1alpha1
+kind: Instance
+metadata:
+  name: my-test-ec2
+  namespace: ack-system
+spec:
+  instanceType: t3.micro
+  ami: ami-0abcdef1234567890
+  region: us-east-1

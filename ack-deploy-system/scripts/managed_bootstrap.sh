@@ -52,6 +52,8 @@ if [[ "${1:-}" == "--oidc-only" ]]; then
     exit 0
 fi
 
+
+
 # rename os to DISTRO
 if [[ $1 == "--install-kubernetes" ]]; then
     os=$2
@@ -76,6 +78,7 @@ sudo systemctl enable --now docker
 sudo yum install -y kubelet kubeadm kubectl
 elif [[ "$os" == "debian" ]]; then
 DISTRO="debian"
+
 sudo apt-get update -y
 sudo apt-get install -y containerd 
 sudo mkdir -p /etc/containerd

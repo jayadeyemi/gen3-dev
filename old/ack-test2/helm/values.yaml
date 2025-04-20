@@ -1,0 +1,37 @@
+# GLOBAL AWS REGION for all controllers
+aws:
+  region: {{ .Env.AWS_REGION | default "us-east-1" }}
+
+controllers: {{ env "CONTROLLERS" | default "s3,ec2" }}
+chartVersion: "v1.0.28"
+
+resync:
+  s3:  {{ env "S3_SYNC"  | default 300 }}
+  ec2: {{ env "EC2_SYNC" | default 500 }}
+
+bucketName:  demo-ack-bucket                         # demo CR parameters
+vpcName:     demo-ack-vpc
+vpcCidr:     10.0.0.0/16
+environment: dev
+
+# S3 controller settings
+s3:
+  enabled: true
+  aws:
+    region: us-east-1
+  reconcile:
+    # every 300 seconds for all S3 kinds (e.g. Bucket)
+    defaultResyncPeriod: 300
+    resourceResyncPeriods:
+      Bucket: 300
+
+# EC2 (VPC) controller settings
+ec2:
+  enabled: true
+  aws:
+    region: us-east-1
+  reconcile:
+    # every 500 seconds for all EC2 kinds (e.g. VPC)
+    defaultResyncPeriod: 500
+    resourceResyncPeriods:
+      VPC: 500

@@ -1,0 +1,12 @@
+aapiVersion: s3.services.k8s.aws/v1alpha1
+kind: Bucket
+metadata:
+  name: {{ .Values.bucketName }}
+  namespace: default
+spec:
+  bucketName: {{ .Values.bucketName }}
+  region: {{ .Values.region }}
+  tags:
+    Name: {{ .Values.bucketName }}
+    Environment: {{ .Values.environment }}
+

@@ -28,7 +28,7 @@ OIDC_HOST=${OIDC_URL#https://}
 # 3) Build trust‑policy JSON
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
-source $SCRIPT_DIR/scripts/trust-relationship.sh
+source $SCRIPT_DIR/scripts/lib/auth/trust-policy.sh
 
 echo "${TRUST_RELATIONSHIP}" > "$TRUST_POLICY_FILE"
 

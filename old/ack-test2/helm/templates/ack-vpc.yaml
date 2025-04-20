@@ -1,0 +1,11 @@
+apiVersion: ec2.services.k8s.aws/v1alpha1
+kind: VPC
+metadata:
+  name: {{ .Values.vpcName }}
+  namespace: default
+spec:
+  cidrBlock: {{ .Values.VPCcidrBlock }}
+  instanceTenancy: default
+  tags:
+    Name: {{ .Values.vpcName }}
+    Environment: {{ .Values.environment }}

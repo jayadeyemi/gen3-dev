@@ -3,7 +3,7 @@ set -euo pipefail
 
 # 0.  export deployment mode
 export MODE=eks
-export MODE=single
+# export MODE=single
 
 # 1.  Create EKS cluster
 ./scripts/cluster-bootstrap.sh

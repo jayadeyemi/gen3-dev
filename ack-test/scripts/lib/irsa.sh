@@ -1,39 +1,18 @@
 create_irsa() {
-    local service="$1"
+    local SERVICE="$1"
+    local ACK_SYSTEM_NAMESPACE="$2"
+    local CLUSTER_NAME="$3"
+    local AWS_REGION="$4"
+    local ACK_K8S_SERVICE_ACCOUNT_NAME="ack-${SERVICE}-controller"
+    local ACK_CONTROLLER_IAM_ROLE="ack-${SERVICE}-irsa"
+    local POLICY_URL="https://raw.githubusercontent.com/aws-controllers-k8s/${SERVICE}-controller/main/config/iam"
 
-    local sa="ack-${service}-controller"
-    local role="ack-${service}-irsa"
-    local policy_url="https://raw.githubusercontent.com/aws-controllers-k8s/${service}-controller/main/config/iam"
 
     if [[ "$MODE" == "eks" ]]; then
         log INFO "[EKS MODE] Setting up IRSA for $SERVICE"
 
-        # Ensure OIDC provider is associated
-        if ! eksctl utils describe-stacks --cluster "$CLUSTER_NAME" --region "$AWS_REGION" | grep -q "OIDC"; then
-            log INFO "Associating OIDC provider with cluster $CLUSTER_NAME"
-            eksctl utils associate-iam-oidc-provider \
-                --region "$AWS_REGION" \
-                --cluster "$CLUSTER_NAME" \
-                --approve >/dev/null
-        fi
-        # Create an IAM OIDC identity provider for the EKS cluster
-        if ! aws iam get-role --role-name "$role" >/dev/null 2>&1; then
-            log INFO  "Creating role $role"
-            eksctl create iamserviceaccount \
-                --name  "$sa" \
-                --namespace "$ACK_NAMESPACE" \
-                --cluster "$CLUSTER_NAME" \
-                --attach-policy-arn "$(curl -s ${policy_url}/recommended-policy-arn)" \
-                --approve --override-existing-serviceaccounts --region "$AWS_REGION"
-        fi
-    else
-        kubectl create namespace $ACK_SYSTEM_NAMESPACE || true
-        kubectl create serviceaccount $ACK_K8S_SERVICE_ACCOUNT_NAME -n $ACK_SYSTEM_NAMESPACE || true
-
-        # Create an IAM OIDC identity provider for the self-hosted cluster
         AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
         OIDC_PROVIDER=$(aws eks describe-cluster --name $EKS_CLUSTER_NAME --region $AWS_REGION --query "cluster.identity.oidc.issuer" --output text | sed -e "s/^https:\/\///")
-        ACK_K8S_SERVICE_ACCOUNT_NAME=ack-$SERVICE-controller
 
         $ROOT_DIR/scripts/trust-relationship.sh 
         
@@ -69,9 +48,32 @@ create_irsa() {
                 --policy-document "$INLINE_POLICY"
             echo "ok."
         fi
-
-        IRSA_ROLE_ARN=eks.amazonaws.com/role-arn=$ACK_CONTROLLER_IAM_ROLE_ARN
+        kubectl describe serviceaccount/$ACK_K8S_SERVICE_ACCOUNT_NAME -n $ACK_K8S_NAMESPACE
+        export IRSA_ROLE_ARN=eks.amazonaws.com/role-arn=$ACK_CONTROLLER_IAM_ROLE_ARN
         kubectl annotate serviceaccount -n $ACK_K8S_NAMESPACE $ACK_K8S_SERVICE_ACCOUNT_NAME $IRSA_ROLE_ARN
+        # Note the deployment name for ACK service controller from following command
+        kubectl get deployments -n $ACK_K8S_NAMESPACE
+        kubectl -n $ACK_K8S_NAMESPACE rollout restart deployment <ACK deployment name>
+
+        kubectl get pods -n $ACK_K8S_NAMESPACE
+        kubectl describe pod -n $ACK_K8S_NAMESPACE <NAME> | grep "^\s*AWS_"
+    
+    else
+
+        ./ssh-keygen.sh
+        ./key-store.sh
+        kubectl create namespace $ACK_SYSTEM_NAMESPACE || true
+        kubectl create serviceaccount $ACK_K8S_SERVICE_ACCOUNT_NAME -n $ACK_SYSTEM_NAMESPACE || true
+        OIDC_PROVIDER=$OIDC_BUCKET
+        $ROOT_DIR/scripts/trust-relationship.sh 
+        
+
+        echo "${TRUST_RELATIONSHIP}" > trust.json
+
+        # 8) Create the IAM role with that trust policy
+        aws iam create-role \
+        --role-name "$IAM_ROLE_NAME" \
+        --assume-role-policy-document file://trust-policy.json
 
         # Note the deployment name for ACK service controller from following command
         ACK_DEPLOYMENT_NAME=$(kubectl get deployments -n ${ACK_SYSTEM_NAMESPACE} --no-headers | grep "$SERVICE" | awk '{print $1}')

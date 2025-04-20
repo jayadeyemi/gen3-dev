@@ -17,6 +17,8 @@ create_iam_oidc(){
         fi
     else
         log INFO "[LOCAL MODE] Setting up IRSA for $SERVICE using self-hosted OIDC"
-        OIDC_PROVIDER=$(oc get authentication cluster -ojson | jq -r .spec.serviceAccountIssuer | sed -e "s/^https:\/\///")
-        export OIDC_PROVIDER
-}
+        aws iam create-open-id-connect-provider \
+            --url "$OIDC_URL" \
+            --thumbprint-list "$THUMBPRINT" \
+            --client-id-list sts.amazonaws.com
+            }

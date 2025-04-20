@@ -5,11 +5,15 @@ set -euo pipefail
 export MODE=eks
 # export MODE=single
 
-# 1.  Create EKS cluster
-./scripts/cluster-bootstrap.sh
-# 2.  Install ACK controllers (+ IRSA roles)
-./scripts/install‑controllers.sh
+# 1.  Set up environment variables
+source "$(dirname "$0")/scripts/lib/common.sh"
+source "$(dirname "$0")/scripts/etc/release.sh"
+source "$(dirname "$0")/scripts/etc/config.sh"
 
+# 1.  Create Kubernetes cluster
+source $SCRIPT_DIR/scripts/cluster-bootstrap.sh
+# 2.  Install ACK controllers (+ IRSA roles)
+source $SCRIPT_DIR/scripts/install-controllers.sh
 # 3.  Deploy all manifest files
 kubectl apply -f ./manifests/ack-system.yaml
 

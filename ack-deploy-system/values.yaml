@@ -1,7 +1,7 @@
 # Global mode: "eks" or "managed-amzn" or "managed-debian" or "managed-linux" or "managed-ubuntu"
 mode: managed-local
-# deploymentType: "development-direct" or "development-vpc" or "production"
-deploymentType: development-vpc
+# deploymentType: "local" or "ec2" or "eks"
+deploymentType: local
 
 aws:
   region: us-east-1

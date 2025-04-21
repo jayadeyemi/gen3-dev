@@ -16,12 +16,25 @@ create_iam_oidc() {
   fi
 }
 install_helm() {
-  if ! command -v helm &>/dev/null; then
-    log INFO "Installing Helm..."
-    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-    chmod +x get_helm.sh && ./get_helm.sh
-  fi
+    if ! command -v helm &>/dev/null; then
+        log INFO "Installing Helm..."
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod +x get_helm.sh && ./get_helm.sh
+    fi
 }
+
+# install yq
+install_yq() {
+    if ! command -v yq &>/dev/null; then
+        log INFO "Installing yq..."
+        local yq_bin="yq_linux_amd64"
+        # Download the latest Linux amd64 binary
+        curl -sSL https://github.com/mikefarah/yq/releases/latest/download/"$yq_bin" -o /usr/local/bin/yq
+        # Make it executable
+        chmod +x /usr/local/bin/yq
+    fi
+}
+
 # Creates or updates per‑controller IAM Role for IRSA
 create_irsa() {
   local svc=$1

@@ -13,7 +13,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # 2) Install base tools
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      git bash curl unzip jq ca-certificates \
+      sudo git bash curl unzip jq ca-certificates \
       coreutils vim less iputils-ping \
  && rm -rf /var/lib/apt/lists/*
 
@@ -31,8 +31,8 @@ RUN curl -Lo /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/d
  && chmod +x /usr/local/bin/yq
 
 # 8) Clone your project
-RUN git clone --branch ${GIT_BRANCH} ${GIT_REPO_URL} ${PROJECT_ROOT}
-
+# RUN git clone --branch ${GIT_BRANCH} ${GIT_REPO_URL} ${PROJECT_ROOT}
+COPY . ${PROJECT_ROOT}
 # 9) Make the deploy script executable
 RUN chmod +x ${PROJECT_ROOT}/ack-deploy-system/deploy.sh
 

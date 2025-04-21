@@ -1,6 +1,3 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
 log() { level=$1; shift; echo "[$level] $*"; }
 
 # Associates an OIDC provider if in EKS mode, or ensures local OIDC in managed mode

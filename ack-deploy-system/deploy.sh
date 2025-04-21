@@ -1,9 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+export PS4='+${BASH_SOURCE}:${LINENO}: '
+set -x
+
+# Choose a path that’s writable both in-container and on your host:
+LOGFILE="${MANAGED_BOOTSTRAP_LOG:-$(pwd)/bootstrap.log}"
+exec > >(tee "${LOGFILE}") 2>&1
+
+# ------------------------------------------------------
+
 container=${container:-}
 MODE=${MODE:-}
 deployment_mode="${deployment_mode:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ------------------------------------------------------
 
 if [[ -z "$MODE" ]]; then
     MODE=$(yq e '.mode' "$(dirname "${BASH_SOURCE[0]}")/values.yaml")
@@ -12,6 +24,7 @@ fi
 if [[ -z "$deployment_mode" ]]; then
     deployment_mode=$(yq e '.deploymentType' "$(dirname "${BASH_SOURCE[0]}")/values.yaml")
 fi
+
 echo "Running in $deployment_mode mode"
 echo "Running in $container mode"
 echo "Running in $MODE mode"
@@ -20,22 +33,22 @@ if [[ "$deployment_mode" == "ec2" ]]; then
     source "$SCRIPT_DIR/../launcher.sh"
 elif [[ "$deployment_mode" == "local" ]]; then
     # Check if running in a container
-    if [[ "container" != "docker" ]]; then
+    if [[ $container != "docker" ]]; then
         source "$SCRIPT_DIR/../docker-build.sh"
     fi
 fi
 
 # Load shared scripts
-source "$SCRIPT_DIR/scripts/lib/common.sh"
+source "$SCRIPT_DIR/scripts/etc/common.sh"
 source "$SCRIPT_DIR/scripts/etc/config.sh"
 
 # Mode‑specific bootstrap
 case "$MODE" in
 eks)    source "$SCRIPT_DIR/scripts/eks-bootstrap.sh"    ;;  
-managed-linux) source "$SCRIPT_DIR/scripts/managed-bootstrap.sh" --install-kubernetes --linux ;; 
-managed-debian) source "$SCRIPT_DIR/scripts/managed-bootstrap.sh" --install-kubernetes --debian ;;
-managed-amzn) source "$SCRIPT_DIR/scripts/managed-bootstrap.sh" --install-kubernetes --amzn ;;
-managed-ubuntu) source "$SCRIPT_DIR/scripts/managed-bootstrap.sh" --install-kubernetes --ubuntu ;;
+managed-linux) source "$SCRIPT_DIR/scripts/managed-bootstrap.sh" --install-kubernetes "--linux" ;; 
+managed-debian) source "$SCRIPT_DIR/scripts/managed-bootstrap.sh" --install-kubernetes "--debian" ;;
+managed-amzn) source "$SCRIPT_DIR/scripts/managed-bootstrap.sh" --install-kubernetes "--amzn" ;;
+managed-ubuntu) source "$SCRIPT_DIR/scripts/managed-bootstrap.sh" --install-kubernetes "--ubuntu" ;;
 *)      log ERROR "Unsupported MODE: $MODE"; exit 1 ;;  
 esac
 
@@ -44,6 +57,7 @@ VALUES_FILE="$SCRIPT_DIR/values.yaml"
 AWS_REGION=$(yq e '.aws.region'      "$VALUES_FILE")
 ACK_NAMESPACE=$(yq e '.ackNamespace'  "$VALUES_FILE")
 CHART_REPO_BASE=$(yq e '.chartRepoBase' "$VALUES_FILE")
+ACK_IAM_BUCKET=$(yq e '.IAMBucket.name' "$VALUES_FILE")
 
 # install helm
 install_helm()

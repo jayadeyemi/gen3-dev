@@ -1,6 +1,3 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
 # Load cluster name (eks mode)
 CLUSTER_NAME=$(yq e '.cluster.name' "$SCRIPT_DIR/values.yaml")
 # Precompute AWS_ACCOUNT_ID

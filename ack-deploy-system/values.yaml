@@ -1,5 +1,5 @@
 # Global mode: "eks" or "managed-amzn" or "managed-debian" or "managed-linux" or "managed-ubuntu"
-mode: managed-local
+mode: managed-debian
 # deploymentType: "local" or "ec2" or "eks"
 deploymentType: local
 
@@ -11,7 +11,7 @@ cluster:
   name: my-eks-cluster       # only used in eks mode
 
 oidc:
-  bucket: my-oidc-bucket     # only used in managed mode
+  bucket: iam-ack-bucket-580686     # only used in managed mode
 
 ackNamespace: ack-system
 chartRepoBase: oci://public.ecr.aws/aws-controllers-k8s

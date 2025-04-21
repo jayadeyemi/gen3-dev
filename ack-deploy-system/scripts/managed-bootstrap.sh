@@ -1,22 +1,3 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-# Handles only local OIDC creation per controller
-if [[ "$1" == "--oidc-only" ]]; then
-  svc=$3
-  bucket=$(yq e '.oidc.bucket' "$SCRIPT_DIR/values.yaml")
-  AWS_REGION=$(yq e '.aws.region' "$SCRIPT_DIR/values.yaml")
-fi
-
-# 2)check if s3 bucket exists
-if ! aws s3api head-bucket --bucket "${bucket}" 2>/dev/null; then
-    echo "S3 bucket ${bucket} does not exist. Creating it..."
-    aws s3api create-bucket \
-        --bucket "${bucket}" \
-        --region "${AWS_REGION}" \
-        --create-bucket-configuration LocationConstraint="${AWS_REGION}"
-
-
 # Usage: managed-bootstrap.sh --oidc-only <service-name>
 if [[ "${1:-}" == "--oidc-only" ]]; then
     svc=$2
@@ -26,7 +7,14 @@ if [[ "${1:-}" == "--oidc-only" ]]; then
 
     # use common pattern to generate/upload JWKS & provider
     $SCRIPT_DIR/etc/jwks.sh 
-
+    # 2)check if s3 bucket exists
+    if ! aws s3api head-bucket --bucket "${bucket}" 2>/dev/null; then
+        echo "S3 bucket ${bucket} does not exist. Creating it..."
+        aws s3api create-bucket \
+            --bucket "${bucket}" \
+            --region "${AWS_REGION}" \
+            --create-bucket-configuration LocationConstraint="${AWS_REGION}"
+    fi
     # Ensure OIDC bucket exists and upload JWKS
     aws s3api create-bucket \
         --bucket "$bucket" \
@@ -57,16 +45,15 @@ fi
 # rename os to DISTRO
 if [[ $1 == "--install-kubernetes" ]]; then
     os=$2
-else
-    os=$(uname -s)
 fi
+
+if [[ "$os" == "--linux" ]]; then
 DISTRO="linux"
-elif [[ "$os" == "--amzn" || "$ID_LIKE" =~ rhel ]]; then
+elif [[ "$os" == "--amzn" ]]; then
 DISTRO="amzn"
 elif [[ "$os" == "--debian" ]]; then
 DISTRO="debian"
 else
-    echo "Unsupported distro: $os"
     exit 1
 fi
 
@@ -76,9 +63,8 @@ sudo yum update -y
 sudo amazon-linux-extras install docker -y
 sudo systemctl enable --now docker
 sudo yum install -y kubelet kubeadm kubectl
-elif [[ "$os" == "debian" ]]; then
-DISTRO="debian"
-
+elif [[ "$DISTRO" == "debian" ]]; then
+echo "Installing Kubernetes on Debian"
 sudo apt-get update -y
 sudo apt-get install -y containerd 
 sudo mkdir -p /etc/containerd

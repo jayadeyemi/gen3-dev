@@ -1,0 +1,57 @@
+name: Promote & Deploy to AWS
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'charts/**'
+      - 'environments/staging/**'
+      - '.github/workflows/release-aws.yaml'
+
+jobs:
+  promote-and-deploy:
+    runs-on: ubuntu-22.04
+    env:
+      AWS_REGION:       ${{ secrets.AWS_REGION }}
+      DEV_CLUSTER:      ${{ secrets.EKS_DEV_CLUSTER }}
+      STAGING_CLUSTER:  ${{ secrets.EKS_STAGING_CLUSTER }}
+      PROD_CLUSTER:     ${{ secrets.EKS_PROD_CLUSTER }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Promote staging → prod green
+        run: |
+          cp environments/staging/values.yaml environments/prod/values-green.yaml
+          git config user.email "ci-bot@myorg.com"
+          git config user.name  "CI Bot"
+          git add environments/prod/values-green.yaml
+          git commit -m "Promote staging to prod (green)"
+      - name: Push promo commit
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Deploy to EKS Staging
+        run: |
+          aws eks update-kubeconfig --name "${STAGING_CLUSTER}" --region "${AWS_REGION}"
+          helm upgrade --install web-staging charts/web \
+            --namespace web-staging --create-namespace \
+            --values environments/prod/values-green.yaml
+
+      - name: Deploy to EKS Production
+        run: |
+          aws eks update-kubeconfig --name "${PROD_CLUSTER}" --region "${AWS_REGION}"
+          helm upgrade --install web-prod charts/web \
+            --namespace web-prod --create-namespace \
+            --values environments/prod/values-green.yaml

@@ -1,0 +1,64 @@
+vpc:
+  enabled: true
+  name: "Commons1"
+  enabled: true
+  cidrBlock: "10.0.0.0/16"
+  tags:
+    Environment: "prod"
+    Organization: "MyOrg"
+
+# flowLogs:
+#   enabled: true
+#   trafficType: ALL
+#   iamRoleARN: ""  # Add the ARN for Flow Logs role
+#   logGroupARN: "" # Add the ARN for Flow Logs log group
+
+# natGateway:
+#   enabled: true
+#   allocationID: ""  # Add your EIP allocation ID
+#   subnetID: ""      # Add the subnet ID where the NAT gateway will live
+
+# route53:
+#   enabled: true
+#   domain: "internal.example.com"
+
+# squid:
+#   enabled: false
+#   availabilityZones: ["us-east-1a", "us-east-1b"]
+#   proxySubnet: "10.0.10.0/24"
+#   envVpcID: "vpc-abc123"
+#   envSquidName: "squid"
+#   organizationName: "MyOrg"
+#   networkExpansion: false
+#   mainPublicRoute: "rtb-012345"
+
+# csoc:
+#   enabled: false
+#   pcxID: ""
+#   vpcName: ""
+#   organizationName: "MyOrg"
+
+# eks:
+#   enabled: false
+#   vpcID: ""
+#   azList: ["us-east-1a", "us-east-1b"]
+#   workersSubnetSize: 24
+#   secondaryCidrBlock: ""
+#   controlPlaneSG: ""
+#   nodepoolSG: ""
+#   cidrsToRoute: []
+#   endpoints:
+#     - ec2
+#     - sts
+#     - autoscaling
+#     - ecr-dkr
+#     - ecr-api
+#     - ebs
+#     - logs
+
+# secondary_cidr_block: ""  # Optional CIDR block for secondary VPC associations
+# peering_cidr: ""          # CIDR block for VPC peering
+
+# csoc_managed: false
+# csoc_account_id: "123456789012"
+# peering_vpc_id: "vpc-abcdef"

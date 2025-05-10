@@ -1,0 +1,1658 @@
+resource:
+  aws_route_table:
+    private_kube:
+      vpc_id: ${module.cdis_vpc.vpc_id}
+      tags:
+        Name: private_kube
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+    public:
+      vpc_id: ${aws_vpc.main.id}
+      route:
+        cidr_block:
+        - 0.0.0.0/0
+        - ${var.peering_cidr}
+        gateway_id: ${aws_internet_gateway.gw.id}
+        vpc_peering_connection_id: ${aws_vpc_peering_connection.vpcpeering.id}
+      tags:
+        Name: main
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+      lifecycle:
+        ignore_changes: ${all}
+  aws_route:
+    for_peering:
+      count: '${var.csoc_managed ? 1 : 0}'
+      route_table_id: ${aws_route_table.private_kube.id}
+      destination_cidr_block: ${var.peering_cidr}
+      vpc_peering_connection_id: ${module.cdis_vpc.vpc_peering_id}
+      depends_on: ${aws_route_table.private_kube}
+    default_csoc:
+      count: '${var.csoc_managed ? 0 : 1}'
+      route_table_id: ${data.aws_route_tables.control_routing_table[count.index].id}
+      destination_cidr_block: ${var.vpc_cidr_block}
+      vpc_peering_connection_id: ${aws_vpc_peering_connection.vpcpeering.id}
+    r:
+      route_table_id: ${data.aws_route_table.selected.id}
+      destination_cidr_block: ${var.vpc_cidr_block}
+      vpc_peering_connection_id: ${aws_vpc_peering_connection_accepter.vpcpeering.id}
+      depends_on: ${aws_vpc_peering_connection_accepter.vpcpeering}
+  aws_route_table_association:
+    private_kube:
+      subnet_id: ${aws_subnet.private_kube.id}
+      route_table_id: ${aws_route_table.private_kube.id}
+    public:
+      subnet_id: ${aws_subnet.public.id}
+      route_table_id: ${aws_route_table.public.id}
+    squid_auto0:
+      count: ${length(var.squid_availability_zones)}
+      subnet_id: ${aws_subnet.squid_pub0.*.id[count.index]}
+      route_table_id: ${var.main_public_route}
+  aws_subnet:
+  - private_kube:
+      vpc_id: ${module.cdis_vpc.vpc_id}
+      cidr_block: '${var.network_expansion ? cidrsubnet(var.vpc_cidr_block, 5, 0)
+        : cidrsubnet(var.vpc_cidr_block, 4, 2)}'
+      map_public_ip_on_launch: false
+      availability_zone: ${data.aws_availability_zones.available.names[0]}
+      tags: '${tomap({"Name": "int_services", "Organization": "${var.organization_name}",
+        "Environment": "${var.vpc_name}"})}'
+      lifecycle:
+        ignore_changes: ${tags} ${availability_zone}
+  - private_db_alt:
+      vpc_id: ${module.cdis_vpc.vpc_id}
+      cidr_block: '${var.network_expansion ? cidrsubnet(var.vpc_cidr_block, 5, 1)
+        : cidrsubnet(var.vpc_cidr_block, 4, 3)}'
+      availability_zone: ${data.aws_availability_zones.available.names[1]}
+      map_public_ip_on_launch: false
+      tags:
+        Name: private_db_alt
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+      lifecycle:
+        ignore_changes: ${tags} ${availability_zone}
+  - public:
+      vpc_id: ${aws_vpc.main.id}
+      cidr_block: '${var.network_expansion ? cidrsubnet(var.vpc_cidr_block, 5, 2)
+        : cidrsubnet(var.vpc_cidr_block, 4, 0)}'
+      map_public_ip_on_launch: true
+      availability_zone: ${data.aws_availability_zones.available.names[1]}
+      tags: '${tomap({"Name": "public", "Organization": "${var.organization_name}",
+        "Environment": "${var.vpc_name}"})}'
+      lifecycle:
+        ignore_changes: ${tags} ${availability_zone}
+  - squid_pub0:
+      count: ${length(var.squid_availability_zones)}
+      vpc_id: ${var.env_vpc_id}
+      cidr_block: '${var.network_expansion ? cidrsubnet(var.squid_proxy_subnet, 2,
+        count.index) : cidrsubnet(var.squid_proxy_subnet, 3, count.index)}'
+      availability_zone: ${var.squid_availability_zones[count.index]}
+      tags: '${tomap({"Name": "${var.env_squid_name}_pub${count.index}", "Organization":
+        "${var.organization_name}", "Environment": "${var.env_squid_name}"})}'
+  aws_db_subnet_group:
+    private_group:
+      name: ${var.vpc_name}_private_group
+      subnet_ids: ${aws_subnet.private_kube.id} ${aws_subnet.private_db_alt.id}
+      description: Private subnet group
+      tags:
+        Name: Private subnet group
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+  aws_iam_role:
+  - esproxy-role:
+      count: '${var.deploy_es_role ? 1 : 0}'
+      name: ${var.vpc_name}-esproxy-sa
+      description: Role for ES proxy service account for ${var.vpc_name}
+      assume_role_policy: "{\n    \"Version\": \"2012-10-17\",\n    \"Statement\"\
+        : [\n        {\n            \"Effect\": \"Allow\",\n            \"Principal\"\
+        : {\n                \"Service\": \"ec2.amazonaws.com\"\n            },\n\
+        \            \"Action\": \"sts:AssumeRole\"\n        },\n        {\n     \
+        \       \"Sid\": \"\",\n            \"Effect\": \"Allow\",\n            \"\
+        Principal\": {\n                \"Federated\": \"${module.eks[0].cluster_oidc_provider_arn}\"\
+        \n            },\n            \"Action\": \"sts:AssumeRoleWithWebIdentity\"\
+        ,\n            \"Condition\": {\n                \"ForAllValues:StringLike\"\
+        : {\n                    \"${module.eks[0].oidc_provider_arn}:sub\": [\n \
+        \                       \"system:serviceaccount:*:esproxy-sa\"\n         \
+        \           ],\n                    \"${module.eks[0].oidc_provider_arn}:aud\"\
+        : \"sts.amazonaws.com\"\n                }\n            }\n        }\n   \
+        \ ]\n}"
+      path: /gen3-service/
+    flow_logs:
+      count: '${var.vpc_flow_logs ? 1 : 0}'
+      name: ${var.vpc_name}_flow_logs_role
+      assume_role_policy: "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n\
+        \    {\n      \"Sid\": \"\",\n      \"Effect\": \"Allow\",\n      \"Principal\"\
+        : {\n        \"Service\": \"vpc-flow-logs.amazonaws.com\"\n      },\n    \
+        \  \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}"
+    squid-auto_role:
+      name: ${var.env_squid_name}_role
+      path: /
+      assume_role_policy: "{\n    \"Version\": \"2012-10-17\",\n    \"Statement\"\
+        : [\n        {\n            \"Action\": \"sts:AssumeRole\",\n            \"\
+        Principal\": {\n               \"Service\": \"ec2.amazonaws.com\"\n      \
+        \      },\n            \"Effect\": \"Allow\",\n            \"Sid\": \"\"\n\
+        \        }\n    ]\n}"
+    data_bucket:
+      name: ${var.vpc_name}-data-bucket-access
+      path: /
+      assume_role_policy: "{\n    \"Version\": \"2012-10-17\",\n    \"Statement\"\
+        : [\n        {\n            \"Action\": \"sts:AssumeRole\",\n            \"\
+        Principal\": {\n               \"Service\": \"ec2.amazonaws.com\"\n      \
+        \      },\n            \"Effect\": \"Allow\",\n            \"Sid\": \"\"\n\
+        \        }\n    ]\n}"
+    cloudtrail_to_cloudwatch_writer:
+      name: ${var.vpc_name}_data-bucket_ct_to_cwl_writer
+      path: /
+      assume_role_policy: "{\n    \"Version\": \"2012-10-17\",\n    \"Statement\"\
+        : [\n        {\n            \"Action\": \"sts:AssumeRole\",\n            \"\
+        Principal\": {\n               \"Service\": \"cloudtrail.amazonaws.com\"\n\
+        \            },\n            \"Effect\": \"Allow\",\n            \"Sid\":\
+        \ \"\"\n        }\n    ]\n}"
+  - eks_control_plane_role:
+      name: ${var.vpc_name}_EKS_${var.nodepool}_role
+      assume_role_policy: "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n\
+        \    {\n      \"Action\": \"sts:AssumeRole\",\n      \"Principal\": {\n  \
+        \      \"Service\": \"eks.amazonaws.com\"\n      },\n      \"Effect\": \"\
+        Allow\",\n      \"Sid\": \"\"\n    }\n  ]\n}"
+  - eks_node_role:
+      name: eks_${var.vpc_name}_nodepool_${var.nodepool}_role
+      assume_role_policy: "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n\
+        \    {\n      \"Effect\": \"Allow\",\n      \"Principal\": {\n        \"Service\"\
+        : \"ec2.amazonaws.com\"\n      },\n      \"Action\": \"sts:AssumeRole\"\n\
+        \    }\n  ]\n}"
+  - the_role:
+      name: ${var.role_name}
+      description: ${var.role_description}
+      assume_role_policy: ${var.role_assume_role_policy}
+      force_detach_policies: ${var.role_force_detach_policies}
+      tags: ${var.role_tags}
+  - audit-role:
+      count: '${var.audit_enabled ? 1 : 0}'
+      name: ${var.vpc_name}-${var.namespace}-audit-sa
+      description: Role for ES proxy service account for ${var.vpc_name}
+      assume_role_policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Effect":
+        "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"},
+        {"Sid": "", "Effect": "Allow", "Principal": {"Federated": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_provider_arn}"},
+        "Action": "sts:AssumeRoleWithWebIdentity", "Condition": {"StringEquals": {"${var.oidc_provider_arn}:sub":
+        ["system:serviceaccount:${var.namespace}:audit-sa"], "${var.oidc_provider_arn}:aud":
+        "sts.amazonaws.com"}}}]})}'
+      path: /gen3-service/
+  - fence-role:
+      count: '${var.fence_enabled ? 1 : 0}'
+      name: ${var.vpc_name}-${var.namespace}-fence-sa
+      description: Role for ES proxy service account for ${var.vpc_name}
+      assume_role_policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Effect":
+        "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"},
+        {"Sid": "", "Effect": "Allow", "Principal": {"Federated": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_provider_arn}"},
+        "Action": "sts:AssumeRoleWithWebIdentity", "Condition": {"StringEquals": {"${var.oidc_provider_arn}:sub":
+        ["system:serviceaccount:${var.namespace}:fence-sa"], "${var.oidc_provider_arn}:aud":
+        "sts.amazonaws.com"}}}]})}'
+      path: /gen3-service/
+  - gitops-role:
+      name: ${var.vpc_name}-${var.namespace}-gitops-sa
+      description: Role for gitops service account for ${var.vpc_name}
+      assume_role_policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Effect":
+        "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"},
+        {"Sid": "", "Effect": "Allow", "Principal": {"Federated": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_provider_arn}"},
+        "Action": "sts:AssumeRoleWithWebIdentity", "Condition": {"StringEquals": {"${var.oidc_provider_arn}:sub":
+        ["system:serviceaccount:${var.namespace}:gitops-sa"], "${var.oidc_provider_arn}:aud":
+        "sts.amazonaws.com"}}}]})}'
+      path: /gen3-service/
+  - hatchery-role:
+      count: '${var.hatchery_enabled ? 1 : 0}'
+      name: ${var.vpc_name}-${var.namespace}-hatchery-sa
+      description: Role for ES proxy service account for ${var.vpc_name}
+      assume_role_policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Effect":
+        "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"},
+        {"Sid": "", "Effect": "Allow", "Principal": {"Federated": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_provider_arn}"},
+        "Action": "sts:AssumeRoleWithWebIdentity", "Condition": {"StringEquals": {"${var.oidc_provider_arn}:sub":
+        ["system:serviceaccount:${var.namespace}:hatchery-sa"], "${var.oidc_provider_arn}:aud":
+        "sts.amazonaws.com"}}}]})}'
+      path: /gen3-service/
+  - manifestservice-role:
+      count: '${var.manifestservice_enabled ? 1 : 0}'
+      name: ${var.vpc_name}-${var.namespace}-manifestservice-sa
+      description: Role for manifestservice service account for ${var.vpc_name}
+      assume_role_policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Effect":
+        "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"},
+        {"Sid": "", "Effect": "Allow", "Principal": {"Federated": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_provider_arn}"},
+        "Action": "sts:AssumeRoleWithWebIdentity", "Condition": {"StringEquals": {"${var.oidc_provider_arn}:sub":
+        ["system:serviceaccount:${var.namespace}:manifestservice-sa"], "${var.oidc_provider_arn}:aud":
+        "sts.amazonaws.com"}}}]})}'
+      path: /gen3-service/
+  - aws-load-balancer-controller-role:
+      count: '${var.namespace == "default" ? 1 : 0}'
+      name: ${var.vpc_name}-aws-load-balancer-controller-sa
+      description: Role for ALB controller service account for ${var.vpc_name}
+      assume_role_policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Effect":
+        "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"},
+        {"Sid": "", "Effect": "Allow", "Principal": {"Federated": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_provider_arn}"},
+        "Action": "sts:AssumeRoleWithWebIdentity", "Condition": {"StringEquals": {"${var.oidc_provider_arn}:sub":
+        ["system:serviceaccount:kube-system:aws-load-balancer-controller"], "${var.oidc_provider_arn}:aud":
+        "sts.amazonaws.com"}}}]})}'
+      path: /gen3-service/
+  - external-secrets-role:
+      count: '${var.namespace == "default" || var.deploy_external_secrets ? 1 : 0}'
+      name: ${var.vpc_name}-${var.namespace}-external-secrets-sa
+      description: Role for external-secrets service account for ${var.vpc_name}
+      assume_role_policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Effect":
+        "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"},
+        {"Sid": "", "Effect": "Allow", "Principal": {"Federated": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_provider_arn}"},
+        "Action": "sts:AssumeRoleWithWebIdentity", "Condition": {"StringEquals": {"${var.oidc_provider_arn}:sub":
+        ["system:serviceaccount:${var.namespace}:external-secrets"], "${var.oidc_provider_arn}:aud":
+        "sts.amazonaws.com"}}}]})}'
+      path: /gen3-service/
+  - s3-mountpoint-role:
+      count: '${var.namespace == "default" || var.deploy_s3_mountpoint ? 1 : 0}'
+      name: ${var.vpc_name}-${var.namespace}-s3-mountpoint-sa
+      description: Role for s3 mountpoint service account for ${var.vpc_name}
+      assume_role_policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Effect":
+        "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"},
+        {"Sid": "", "Effect": "Allow", "Principal": {"Federated": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_provider_arn}"},
+        "Action": "sts:AssumeRoleWithWebIdentity", "Condition": {"StringEquals": {"${var.oidc_provider_arn}:sub":
+        ["system:serviceaccount:kube-system:s3-csi-driver-sa"], "${var.oidc_provider_arn}:aud":
+        "sts.amazonaws.com"}}}]})}'
+      path: /gen3-service/
+  - grafana-role:
+      count: '${var.namespace == "default" && var.deploy_grafana ? 1 : 0}'
+      name: ${var.vpc_name}-observability-role
+      description: Role for grafana service account for ${var.vpc_name}
+      assume_role_policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Effect":
+        "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"},
+        {"Sid": "", "Effect": "Allow", "Principal": {"Federated": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_provider_arn}"},
+        "Action": "sts:AssumeRoleWithWebIdentity", "Condition": {"StringEquals": {"${var.oidc_provider_arn}:sub":
+        ["system:serviceaccount:monitoring:observability"], "${var.oidc_provider_arn}:aud":
+        "sts.amazonaws.com"}}}]})}'
+      path: /gen3-service/
+  - role:
+      count: '${var.secrets_manager_enabled ? var.role != "" ? 0 : 1 : 0}'
+      name: ${var.vpc_name}-${var.service}-${var.namespace}-creds-access-role
+      assume_role_policy: ${data.aws_iam_policy_document.sa_policy.json}
+  helm_release:
+  - argocd:
+      count: '${var.k8s_bootstrap_resources && var.deploy_argocd ? 1 : 0}'
+      name: argocd
+      chart: argo-cd
+      repository: https://argoproj.github.io/argo-helm
+      version: ${var.argocd_version}
+      namespace: argocd
+      create_namespace: true
+      values: 'server.basehref: "/argocd/"'
+  - external-secrets:
+      count: '${var.k8s_bootstrap_resources && var.deploy_external_secrets_operator
+        ? 1 : 0}'
+      name: external-secrets
+      chart: external-secrets
+      repository: https://charts.external-secrets.io
+      version: ${var.external_secrets_operator_version}
+      namespace: external-secrets
+      create_namespace: true
+      values: "serviceAccount:\n  create: true\n  name: external-secrets\nsyncPolicy:\n\
+        \  automated:\n    prune: true\n    selfHeal: true"
+  - gen3:
+      count: '${var.deploy_gen3 ? 1 : 0}'
+      name: ${var.namespace}
+      repository: http://helm.gen3.org
+      chart: gen3
+      namespace: ${var.namespace}
+      create_namespace: true
+      wait: false
+      values: ${local.values}
+  aws_db_instance:
+  - db_fence:
+      count: '${var.deploy_fence_db && var.deploy_rds ? 1 : 0}'
+      allocated_storage: ${var.fence_db_size}
+      identifier: ${var.vpc_name}-fencedb
+      storage_type: gp2
+      engine: postgres
+      engine_version: ${var.engine_version}
+      parameter_group_name: ${aws_db_parameter_group.rds-cdis-pg.name}
+      instance_class: ${var.fence_db_instance}
+      db_name: ${var.fence_database_name}
+      username: ${var.fence_db_username}
+      password: '${var.db_password_fence != "" ? var.db_password_fence : random_password.fence_password.result}'
+      snapshot_identifier: ${var.fence_snapshot}
+      db_subnet_group_name: ${aws_db_subnet_group.private_group.id}
+      vpc_security_group_ids: ${module.cdis_vpc.security_group_local_id}
+      allow_major_version_upgrade: ${var.fence_allow_major_version_upgrade}
+      final_snapshot_identifier: ${replace(var.vpc_name, "_", "-")}-fencedb
+      maintenance_window: ${var.fence_maintenance_window}
+      backup_retention_period: ${var.fence_backup_retention_period}
+      backup_window: ${var.fence_backup_window}
+      multi_az: ${var.fence_ha}
+      auto_minor_version_upgrade: ${var.fence_auto_minor_version_upgrade}
+      storage_encrypted: ${var.rds_instance_storage_encrypted}
+      max_allocated_storage: ${var.fence_max_allocated_storage}
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+      lifecycle:
+        prevent_destroy: true
+        ignore_changes: ${all}
+  - db_sheepdog:
+      count: '${var.deploy_sheepdog_db && var.deploy_rds ? 1 : 0}'
+      allocated_storage: ${var.sheepdog_db_size}
+      identifier: ${var.vpc_name}-sheepdog
+      storage_type: gp2
+      engine: postgres
+      engine_version: ${var.engine_version}
+      parameter_group_name: ${aws_db_parameter_group.rds-cdis-pg.name}
+      instance_class: ${var.sheepdog_db_instance}
+      db_name: ${var.sheepdog_database_name}
+      username: ${var.sheepdog_db_username}
+      password: '${var.db_password_sheepdog != "" ? var.db_password_sheepdog : random_password.sheepdog_password.result}'
+      snapshot_identifier: ${var.sheepdog_snapshot}
+      db_subnet_group_name: ${aws_db_subnet_group.private_group.id}
+      vpc_security_group_ids: ${module.cdis_vpc.security_group_local_id}
+      allow_major_version_upgrade: ${var.sheepdog_allow_major_version_upgrade}
+      final_snapshot_identifier: ${replace(var.vpc_name, "_", "-")}-sheepdogdb
+      maintenance_window: ${var.sheepdog_maintenance_window}
+      backup_retention_period: ${var.sheepdog_backup_retention_period}
+      backup_window: ${var.sheepdog_backup_window}
+      multi_az: ${var.sheepdog_ha}
+      auto_minor_version_upgrade: ${var.sheepdog_auto_minor_version_upgrade}
+      storage_encrypted: ${var.rds_instance_storage_encrypted}
+      max_allocated_storage: ${var.sheepdog_max_allocated_storage}
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+      lifecycle:
+        prevent_destroy: true
+        ignore_changes: ${all}
+  - db_indexd:
+      count: '${var.deploy_indexd_db && var.deploy_rds ? 1 : 0}'
+      allocated_storage: ${var.indexd_db_size}
+      identifier: ${var.vpc_name}-indexddb
+      storage_type: gp2
+      engine: postgres
+      engine_version: ${var.engine_version}
+      parameter_group_name: ${aws_db_parameter_group.rds-cdis-pg.name}
+      instance_class: ${var.indexd_db_instance}
+      db_name: ${var.indexd_database_name}
+      username: ${var.indexd_db_username}
+      password: '${var.db_password_indexd != "" ? var.db_password_indexd : random_password.indexd_password.result}'
+      snapshot_identifier: ${var.indexd_snapshot}
+      db_subnet_group_name: ${aws_db_subnet_group.private_group.id}
+      vpc_security_group_ids: ${module.cdis_vpc.security_group_local_id}
+      allow_major_version_upgrade: ${var.indexd_allow_major_version_upgrade}
+      final_snapshot_identifier: ${replace(var.vpc_name, "_", "-")}-indexddb
+      maintenance_window: ${var.indexd_maintenance_window}
+      backup_retention_period: ${var.indexd_backup_retention_period}
+      backup_window: ${var.indexd_backup_window}
+      multi_az: ${var.indexd_ha}
+      auto_minor_version_upgrade: ${var.indexd_auto_minor_version_upgrade}
+      storage_encrypted: ${var.rds_instance_storage_encrypted}
+      max_allocated_storage: ${var.indexd_max_allocated_storage}
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+      lifecycle:
+        prevent_destroy: true
+        ignore_changes: ${all}
+  aws_db_parameter_group:
+    rds-cdis-pg:
+      name: ${var.vpc_name}-rds-cdis-pg
+      family: postgres${local.pg_family_version}
+      parameter:
+        name:
+        - cpu_index_tuple_cost
+        - cpu_tuple_cost
+        - log_duration
+        - log_min_duration_statement
+        - random_page_cost
+        - password_encryption
+        value:
+        - '0.000005'
+        - '0.7'
+        - '1'
+        - '0'
+        - '0.7'
+        - scram-sha-256
+      lifecycle:
+        ignore_changes: ${all}
+  aws_kms_key:
+    kube_key:
+      description: encryption/decryption key for kubernete
+      enable_key_rotation: true
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+  aws_kms_alias:
+    kube_key:
+      name: alias/${var.vpc_name}-k8s
+      target_key_id: ${aws_kms_key.kube_key.key_id}
+  aws_key_pair:
+    automation_dev:
+      key_name: ${var.vpc_name}_automation_dev
+      public_key: ${var.kube_ssh_key}
+  aws_iam_policy:
+  - configbucket_reader:
+      name: bucket_reader_cdis-gen3-users_${var.vpc_name}
+      description: Read cdis-gen3-users/${var.config_folder}
+      policy: ${data.aws_iam_policy_document.configbucket_reader.json}
+      lifecycle:
+        ignore_changes: ${policy}
+  - data_bucket_reader:
+      name: data_bucket_read_${var.vpc_name}
+      description: Data Bucket access for ${var.vpc_name}
+      policy: ${data.aws_iam_policy_document.data_bucket_reader.json}
+  - data_bucket_writer:
+      name: data_bucket_write_${var.vpc_name}
+      description: Data Bucket access for ${var.vpc_name}
+      policy: ${data.aws_iam_policy_document.data_bucket_reader.json}
+  - log_bucket_writer:
+      name: bucket_writer_${aws_s3_bucket.log_bucket.id}
+      description: Read or write ${aws_s3_bucket.log_bucket.id}
+      policy: ${data.aws_iam_policy_document.log_bucket_writer.json}
+  - trail_writer:
+      name: trail_write_to_cwl_${var.environment}
+      description: Put logs in CWL ${var.environment}
+      policy: ${data.aws_iam_policy_document.trail_policy.json}
+  - cwl_access_policy:
+      name: ${var.vpc_name}_EKS_nodepool_${var.nodepool}_access_to_cloudwatchlogs
+      description: In order to avoid the creation of users and keys, we are using
+        roles and policies.
+      policy: "{\n    \"Version\": \"2012-10-17\",\n    \"Statement\": [\n       \
+        \ {\n            \"Effect\": \"Allow\",\n            \"Action\": \"logs:DescribeLogGroups\"\
+        ,\n            \"Resource\": \"arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group::log-stream:*\"\
+        \n        },\n        {\n            \"Effect\": \"Allow\",\n            \"\
+        Action\": [\n                \"logs:CreateLogStream\",\n                \"\
+        logs:PutLogEvents\",\n                \"logs:DescribeLogStreams\"\n      \
+        \      ],\n            \"Resource\": \"arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:${var.vpc_name}:log-stream:*\"\
+        \n        }\n    ]\n}"
+  - access_to_kernels:
+      name: ${var.vpc_name}_EKS_nodepool_${var.nodepool}_kernel_access
+      description: To access custom Kernels
+      policy: "{\n    \"Version\": \"2012-10-17\",\n    \"Statement\": [\n       \
+        \ {\n            \"Sid\": \"\",\n            \"Effect\": \"Allow\",\n    \
+        \        \"Action\": [\n                \"s3:List*\",\n                \"\
+        s3:Get*\"\n            ],\n            \"Resource\": [\n                \"\
+        arn:aws:s3:::gen3-kernels/*\",\n                \"arn:aws:s3:::gen3-kernels\"\
+        ,\n                \"arn:aws:s3:::qualys-agentpackage\",\n               \
+        \ \"arn:aws:s3:::qualys-agentpackage/*\"\n            ]\n        }\n    ]\n\
+        }"
+  - asg_access:
+      name: ${var.vpc_name}_EKS_nodepool_${var.nodepool}_autoscaling_access
+      description: Allow the deployment cluster-autoscaler to add or terminate instances
+        accordingly
+      policy: "{\n    \"Version\": \"2012-10-17\",\n    \"Statement\": [\n       \
+        \ {\n            \"Effect\": \"Allow\",\n            \"Action\": [\n     \
+        \           \"autoscaling:DescribeAutoScalingGroups\",\n                \"\
+        autoscaling:DescribeAutoScalingInstances\",\n                \"autoscaling:DescribeTags\"\
+        ,\n                \"autoscaling:SetDesiredCapacity\",\n                \"\
+        autoscaling:TerminateInstanceInAutoScalingGroup\",\n                \"autoscaling:DescribeLaunchConfigurations\"\
+        \n            ],\n            \"Resource\": \"*\"\n        }\n    ]\n}"
+  - policy:
+      name: ${var.policy_name}
+      path: ${var.policy_path}
+      description: ${var.policy_description}
+      policy: ${var.policy_json}
+  - secrets_manager_policy:
+      count: '${var.secrets_manager_enabled ? 1 : 0}'
+      name: ${var.vpc_name}-${var.service}-${var.namespace}-creds-access-policy
+      description: Policy for ${var.vpc_name}-${var.service} to access secrets manager
+      policy: ${data.aws_iam_policy_document.policy.json}
+  random_password:
+  - fence_password:
+      length: ${var.password_length}
+      special: false
+  - sheepdog_password:
+      length: ${var.password_length}
+      special: false
+  - peregrine_password:
+      length: ${var.password_length}
+      special: false
+  - indexd_password:
+      length: ${var.password_length}
+      special: false
+  - hmac_encryption_key:
+      length: 32
+      special: false
+  - sheepdog_secret_key:
+      length: 50
+      special: false
+  - sheepdog_indexd_password:
+      length: 32
+      special: false
+  - password:
+      length: ${var.password_length}
+      special: false
+  - db_password:
+      count: '${var.password != "" ? 0 : 1}'
+      length: 16
+      special: false
+  aws_rds_cluster:
+    postgresql:
+      cluster_identifier: ${var.vpc_name}-${var.cluster_identifier}
+      engine: ${var.cluster_engine}
+      engine_version: ${var.cluster_engine_version}
+      db_subnet_group_name: ${var.vpc_name}_private_group
+      vpc_security_group_ids: ${data.aws_security_group.private.id}
+      master_username: ${var.master_username}
+      master_password: ${random_password.password.result}
+      storage_encrypted: ${var.storage_encrypted}
+      apply_immediately: ${var.apply_immediate}
+      engine_mode: ${var.engine_mode}
+      skip_final_snapshot: ${var.skip_final_snapshot}
+      final_snapshot_identifier: ${var.vpc_name}-${var.final_snapshot_identifier}
+      backup_retention_period: ${var.backup_retention_period}
+      preferred_backup_window: ${var.preferred_backup_window}
+      db_cluster_parameter_group_name: ${aws_rds_cluster_parameter_group.aurora_cdis_pg.name}
+      kms_key_id: ${var.db_kms_key_id}
+      serverlessv2_scaling_configuration:
+        max_capacity: ${var.serverlessv2_scaling_max_capacity}
+        min_capacity: ${var.serverlessv2_scaling_min_capacity}
+      lifecycle:
+        ignore_changes: ${kms_key_id} ${engine_version}
+  aws_rds_cluster_instance:
+    postgresql:
+      db_subnet_group_name: ${aws_rds_cluster.postgresql.db_subnet_group_name}
+      identifier: ${var.vpc_name}-${var.cluster_instance_identifier}
+      cluster_identifier: ${aws_rds_cluster.postgresql.id}
+      instance_class: ${var.cluster_instance_class}
+      engine: ${aws_rds_cluster.postgresql.engine}
+      engine_version: ${aws_rds_cluster.postgresql.engine_version}
+      lifecycle:
+        ignore_changes: ${engine_version}
+  local_sensitive_file:
+    aurora_creds:
+      count: '${var.secrets_manager_enabled ? 0 : 1}'
+      content: ${local.aurora-creds-template}
+      filename: ${path.cwd}/${var.vpc_name}_output/aurora-creds.json
+  aws_rds_cluster_parameter_group:
+    aurora_cdis_pg:
+      name: ${var.vpc_name}-aurora-cdis-pg
+      family: aurora-postgresql${local.pg_family_version}
+      parameter:
+        name:
+        - cpu_index_tuple_cost
+        - cpu_tuple_cost
+        - log_duration
+        - log_min_duration_statement
+        - random_page_cost
+        - password_encryption
+        value:
+        - '0.000005'
+        - '0.7'
+        - '1'
+        - '0'
+        - '0.7'
+        - scram-sha-256
+      lifecycle:
+        ignore_changes: ${all}
+  aws_secretsmanager_secret:
+  - secret:
+      name: ${var.vpc_name}_${var.secret_name}
+  - secret:
+      name: ${var.vpc_name}_${var.namespace}-values
+  - fence_config:
+      name: ${var.vpc_name}_${var.namespace}-fence-config
+  - es_user_creds:
+      name: ${var.vpc_name}_${var.namespace}-aws-es-proxy-creds
+  - secret:
+      name: ${var.vpc_name}_${var.secret_name}
+  aws_secretsmanager_secret_version:
+  - secret:
+      secret_id: ${aws_secretsmanager_secret.secret.id}
+      secret_string: ${var.secret}
+  - secret:
+      secret_id: ${aws_secretsmanager_secret.secret.id}
+      secret_string: ${local.values}
+  - fence_config:
+      secret_id: ${aws_secretsmanager_secret.fence_config.id}
+      secret_string: '${var.fence_config_path != "" ? file(var.fence_config_path)
+        : templatefile("${path.module}/fence-config.tftpl", {"hostname": "${var.hostname}",
+        "google_client_id": "${var.google_client_id}", "google_client_secret": "${var.google_client_secret}",
+        "fence_access_key": "${var.fence_access_key}", "fence_secret_key": "${var.fence_secret_key}",
+        "upload_bucket": "${var.upload_bucket}"})}'
+      lifecycle:
+        ignore_changes: ${secret_string}
+  - es_user_creds:
+      secret_id: ${aws_secretsmanager_secret.es_user_creds.id}
+      secret_string: '${templatefile("${path.module}/aws-user-creds.tftpl", {"access_key":
+        "${var.es_user_key}", "access_secret": "${var.es_user_secret}"})}'
+  - secret:
+      secret_id: ${aws_secretsmanager_secret.secret.id}
+      secret_string: ${var.secret}
+  aws_wafv2_web_acl:
+    waf:
+      name: ${var.vpc_name}-waf
+      description: WAF per environment for tailored security.
+      scope: REGIONAL
+      default_action:
+        allow: {}
+      dynamic:
+        rule:
+          for_each: ${concat(var.base_rules, var.additional_rules)}
+          content:
+            name: AWS-${rule.value.managed_rule_group_name}
+            priority: ${rule.value.priority}
+            override_action:
+              none: {}
+            statement:
+              managed_rule_group_statement:
+                vendor_name: AWS
+                name: ${rule.value.managed_rule_group_name}
+                dynamic:
+                  rule_action_override:
+                    for_each: '${length(rule.value.override_to_count) > 0 ? rule.value.override_to_count
+                      : []}'
+                    content:
+                      action_to_use:
+                        count: {}
+                      name: ${rule_action_override.value}
+            visibility_config:
+              sampled_requests_enabled: true
+              cloudwatch_metrics_enabled: true
+              metric_name: AWS-${rule.value.managed_rule_group_name}
+      tags:
+        Environment: ${var.vpc_name}
+      visibility_config:
+        cloudwatch_metrics_enabled: false
+        metric_name: WebAclMetrics
+        sampled_requests_enabled: false
+  aws_vpc:
+    main:
+      cidr_block: ${var.vpc_cidr_block}
+      enable_dns_hostnames: true
+      tags:
+        Name: ${var.vpc_name}
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+      lifecycle:
+        ignore_changes: ${tags}
+  aws_flow_log:
+    main:
+      count: '${var.vpc_flow_logs ? 1 : 0}'
+      iam_role_arn: ${aws_iam_role.flow_logs[count.index].arn}
+      log_destination: ${aws_cloudwatch_log_group.main_log_group.arn}
+      traffic_type: ${var.vpc_flow_traffic}
+      vpc_id: ${aws_vpc.main.id}
+  aws_iam_role_policy:
+  - example:
+      count: '${var.vpc_flow_logs ? 1 : 0}'
+      name: ${var.vpc_name}_flow_logs_policy
+      role: ${aws_iam_role.flow_logs[count.index].id}
+      policy: "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n    \
+        \  \"Action\": [\n        \"logs:CreateLogGroup\",\n        \"logs:CreateLogStream\"\
+        ,\n        \"logs:PutLogEvents\",\n        \"logs:DescribeLogGroups\",\n \
+        \       \"logs:DescribeLogStreams\"\n      ],\n      \"Effect\": \"Allow\"\
+        ,\n      \"Resource\": \"*\"\n    }\n  ]\n}"
+    squid_policy:
+      name: ${var.env_squid_name}_policy
+      policy: ${data.aws_iam_policy_document.squid_policy_document.json}
+      role: ${aws_iam_role.squid-auto_role.id}
+  - audit-role-policy:
+      name: audit-role-policy
+      role: ${aws_iam_role.audit-role[0].id}
+      policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Action": ["sqs:ReceiveMessage",
+        "sqs:GetQueueAttributes", "sqs:DeleteMessage"], "Effect": "Allow", "Resource":
+        ["${module.audit-sqs.sqs-arn}"]}]})}'
+  - fence-role-policy:
+      name: fence-role-policy
+      role: ${aws_iam_role.fence-role[0].id}
+      policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Action": ["sqs:SendMessage"],
+        "Effect": "Allow", "Resource": ["${module.audit-sqs.sqs-arn}"]}]})}'
+  - gitops-role-policy:
+      name: gitops-role-policy
+      role: ${aws_iam_role.gitops-role.id}
+      policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Action": ["s3:List*",
+        "s3:Get*"], "Effect": "Allow", "Resource": ["arn:aws:s3:::dashboard-${data.aws_caller_identity.current.account_id}-${var.vpc_name}-gen3/*",
+        "arn:aws:s3:::dashboard-${data.aws_caller_identity.current.account_id}-${var.vpc_name}-gen3"]},
+        {"Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"], "Effect":
+        "Allow", "Resource": "arn:aws:s3:::dashboard-${data.aws_caller_identity.current.account_id}-${var.vpc_name}-gen3/*"}]})}'
+  - hatchery-role-policy:
+      name: hatchery-role-policy
+      role: ${aws_iam_role.hatchery-role[0].id}
+      policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Action": ["sts:AssumeRole"],
+        "Effect": "Allow", "Resource": ["arn:aws:iam::*:role/csoc_adminvm*"]}, {"Action":
+        ["ec2:*"], "Effect": "Allow", "Resource": "*"}]})}'
+  - manifestservice-role-policy:
+      name: manifestservice-role-policy
+      role: ${aws_iam_role.manifestservice-role[0].id}
+      policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Action": ["s3:List*",
+        "s3:Get*"], "Effect": "Allow", "Resource": ["arn:aws:s3:::manifestservice-${var.vpc_name}-${var.namespace}/*",
+        "arn:aws:s3:::manifestservice-${var.vpc_name}-${var.namespace}"]}, {"Action":
+        ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"], "Effect": "Allow", "Resource":
+        "arn:aws:s3:::manifestservice-${var.vpc_name}-${var.namespace}/*"}]})}'
+  - aws-load-balancer-role-policy:
+      count: '${var.namespace == "default" ? 1 : 0}'
+      name: aws-load-balancer-controller-role-policy
+      role: ${aws_iam_role.aws-load-balancer-controller-role[0].id}
+      policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Action": "iam:createServiceLinkedRole",
+        "Effect": "Allow", "Resource": "*", "Condition": {"StringEquals": {"iam:AWSServiceName":
+        "elasticloadbalancing.amazonaws.com"}}}, {"Action": ["ec2:DescribeAccountAttributes",
+        "ec2:DescribeAddresses", "ec2:DescribeAvailabilityZones", "ec2:DescribeInternetGateways",
+        "ec2:DescribeVpcs", "ec2:DescribeVpcPeeringConnections", "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups", "ec2:DescribeInstances", "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeTags", "ec2:GetCoipPoolUsage", "ec2:GetSecurityGroupsForVpc",
+        "ec2:DescribeCoipPools", "elasticloadbalancing:DescribeLoadBalancers", "elasticloadbalancing:DescribeLoadBalancerAttributes",
+        "elasticloadbalancing:DescribeListeners", "elasticloadbalancing:DescribeListenerAttributes",
+        "elasticloadbalancing:DescribeListenerCertificates", "elasticloadbalancing:DescribeSSLPolicies",
+        "elasticloadbalancing:DescribeRules", "elasticloadbalancing:DescribeTargetGroups",
+        "elasticloadbalancing:DescribeTargetGroupAttributes", "elasticloadbalancing:DescribeTargetHealth",
+        "elasticloadbalancing:DescribeTags", "elasticloadbalancing:AddTags"], "Effect":
+        "Allow", "Resource": "*"}, {"Action": ["cognito-idp:DescribeUserPoolClient",
+        "acm:ListCertificates", "acm:DescribeCertificate", "iam:ListServerCertificates",
+        "iam:GetServerCertificate", "waf-regional:GetWebACL", "waf-regional:GetWebACLForResource",
+        "waf-regional:AssociateWebACL", "waf-regional:DisassociateWebACL", "wafv2:GetWebACL",
+        "wafv2:GetWebACLForResource", "wafv2:AssociateWebACL", "wafv2:DisassociateWebACL",
+        "shield:GetSubscriptionState", "shield:DescribeProtection", "shield:CreateProtection",
+        "shield:DeleteProtection"], "Effect": "Allow", "Resource": "*"}, {"Action":
+        ["ec2:AuthorizeSecurityGroupIngress", "ec2:RevokeSecurityGroupIngress"], "Effect":
+        "Allow", "Resource": "*"}, {"Action": ["ec2:CreateSecurityGroup"], "Effect":
+        "Allow", "Resource": "*"}, {"Action": ["ec2:CreateTags"], "Effect": "Allow",
+        "Resource": "arn:aws:ec2:*:*:security-group/*", "Condition": {"StringEquals":
+        {"ec2:CreateAction": "CreateSecurityGroup"}, "Null": {"aws:RequestTag/elbv2.k8s.aws/cluster":
+        "false"}}}, {"Action": ["ec2:CreateTags", "ec2:DeleteTags"], "Effect": "Allow",
+        "Resource": "arn:aws:ec2:*:*:security-group/*", "Condition": {"Null": {"aws:RequestTag/elbv2.k8s.aws/cluster":
+        "true", "aws:ResourceTag/elbv2.k8s.aws/cluster": "false"}}}, {"Action": ["ec2:AuthorizeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupIngress", "ec2:DeleteSecurityGroup"], "Effect": "Allow",
+        "Resource": "*", "Condition": {"Null": {"aws:ResourceTag/elbv2.k8s.aws/cluster":
+        "false"}}}, {"Action": ["elasticloadbalancing:CreateLoadBalancer", "elasticloadbalancing:CreateTargetGroup"],
+        "Effect": "Allow", "Resource": "*", "Condition": {"Null": {"aws:RequestTag/elbv2.k8s.aws/cluster":
+        "false"}}}, {"Action": ["elasticloadbalancing:CreateListener", "elasticloadbalancing:DeleteListener",
+        "elasticloadbalancing:CreateRule", "elasticloadbalancing:DeleteRule"], "Effect":
+        "Allow", "Resource": "*"}, {"Action": ["elasticloadbalancing:AddTags", "elasticloadbalancing:RemoveTags"],
+        "Effect": "Allow", "Resource": ["arn:aws:elasticloadbalancing:*:*:targetgroup/*/*",
+        "arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*", "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*"],
+        "Condition": {"Null": {"aws:RequestTag/elbv2.k8s.aws/cluster": "true", "aws:ResourceTag/elbv2.k8s.aws/cluster":
+        "false"}}}, {"Action": ["elasticloadbalancing:AddTags", "elasticloadbalancing:RemoveTags"],
+        "Effect": "Allow", "Resource": ["arn:aws:elasticloadbalancing:*:*:listener/net/*/*/*",
+        "arn:aws:elasticloadbalancing:*:*:listener/app/*/*/*", "arn:aws:elasticloadbalancing:*:*:listener-rule/net/*/*/*",
+        "arn:aws:elasticloadbalancing:*:*:listener-rule/app/*/*/*"]}, {"Action": ["elasticloadbalancing:ModifyLoadBalancerAttributes",
+        "elasticloadbalancing:SetIpAddressType", "elasticloadbalancing:SetSecurityGroups",
+        "elasticloadbalancing:SetSubnets", "elasticloadbalancing:DeleteLoadBalancer",
+        "elasticloadbalancing:ModifyTargetGroup", "elasticloadbalancing:ModifyTargetGroupAttributes",
+        "elasticloadbalancing:DeleteTargetGroup"], "Effect": "Allow", "Resource":
+        "*", "Condition": {"Null": {"aws:ResourceTag/elbv2.k8s.aws/cluster": "false"}}},
+        {"Action": ["elasticloadbalancing:RegisterTargets", "elasticloadbalancing:DeregisterTargets"],
+        "Effect": "Allow", "Resource": "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*"},
+        {"Action": ["elasticloadbalancing:SetWebAcl", "elasticloadbalancing:ModifyListener",
+        "elasticloadbalancing:AddListenerCertificates", "elasticloadbalancing:RemoveListenerCertificates",
+        "elasticloadbalancing:ModifyRule"], "Effect": "Allow", "Resource": "*"}]})}'
+  - external-secrets-role-policy:
+      count: '${var.namespace == "default" || var.deploy_external_secrets ? 1 : 0}'
+      name: external-secrets-role-policy
+      role: ${aws_iam_role.external-secrets-role[0].id}
+      policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Action": ["secretsmanager:ListSecrets",
+        "secretsmanager:GetSecretValue"], "Effect": "Allow", "Resource": "*"}]})}'
+  - s3-mountpoint-role-policy:
+      count: '${var.namespace == "default" || var.deploy_s3_mountpoint ? 1 : 0}'
+      name: s3-mountpoint-role-policy
+      role: ${aws_iam_role.s3-mountpoint-role[0].id}
+      policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Action": ["s3:ListBucket"],
+        "Effect": "Allow", "Resource": "*"}, {"Action": ["s3:GetObject", "s3:PutObject",
+        "s3:AbortMultipartUpload", "s3:DeleteObject"], "Effect": "Allow", "Resource":
+        "*"}]})}'
+  - grafana-role-policy:
+      count: '${var.namespace == "default" && var.deploy_grafana ? 1 : 0}'
+      name: grafana-role-policy
+      role: ${aws_iam_role.grafana-role[0].id}
+      policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Action": ["s3:AbortMultipartUpload",
+        "s3:DeleteObject", "s3:GetObject", "s3:ListBucket", "s3:PutObject", "s3:DeleteObjectVersion",
+        "s3:GetObjectVersion", "s3:PutObjectAcl", "s3:GetObjectAcl", "s3:ListBucketMultipartUploads",
+        "s3:ListBucketVersions"], "Effect": "Allow", "Resource": ["arn:aws:s3:::${var.vpc_name}-observability-bucket",
+        "arn:aws:s3:::${var.vpc_name}-observability-bucket/*"]}]})}'
+  aws_vpc_ipv4_cidr_block_association:
+    secondary_cidr:
+      count: '${var.secondary_cidr_block != "" ? 1 : 0}'
+      vpc_id: ${aws_vpc.main.id}
+      cidr_block: ${var.secondary_cidr_block}
+  aws_internet_gateway:
+    gw:
+      vpc_id: ${aws_vpc.main.id}
+      tags:
+        Name: ${var.vpc_name}-igw
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+  aws_nat_gateway:
+    nat_gw:
+      allocation_id: ${aws_eip.nat_gw.id}
+      subnet_id: ${aws_subnet.public.id}
+      tags:
+        Name: ${var.vpc_name}-ngw
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+  aws_eip:
+    nat_gw:
+      vpc: true
+      tags:
+        Name: ${var.vpc_name}-ngw-eip
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+  aws_default_route_table:
+    default:
+      default_route_table_id: ${aws_vpc.main.default_route_table_id}
+      route:
+        cidr_block: ${var.peering_cidr}
+        vpc_peering_connection_id: ${aws_vpc_peering_connection.vpcpeering.id}
+      tags:
+        Name: default table
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+  aws_main_route_table_association:
+    default:
+      vpc_id: ${aws_vpc.main.id}
+      route_table_id: ${aws_default_route_table.default.id}
+  aws_cloudwatch_log_group:
+    main_log_group:
+      name: ${var.vpc_name}
+      retention_in_days: ${var.commons_log_retention}
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+  aws_cloudwatch_log_subscription_filter:
+    csoc_subscription:
+      count: '${var.csoc_managed && var.send_logs_to_csoc ? 1 : 0}'
+      name: ${var.vpc_name}_subscription
+      destination_arn: 'arn:aws:logs:${data.aws_region.current.name}:${var.csoc_managed
+        ? var.csoc_account_id : data.aws_caller_identity.current.account_id}:destination:${var.vpc_name}_logs_destination'
+      log_group_name: ${var.vpc_name}
+      filter_pattern: ''
+      lifecycle:
+        ignore_changes: ${distribution}
+  aws_route53_zone:
+    main:
+      name: internal.io
+      comment: internal dns server for ${var.vpc_name}
+      vpc:
+        vpc_id: ${aws_vpc.main.id}
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+  aws_vpc_peering_connection:
+    vpcpeering:
+      peer_owner_id: '${var.csoc_managed ? var.csoc_account_id : data.aws_caller_identity.current.account_id}'
+      peer_vpc_id: ${var.peering_vpc_id}
+      vpc_id: ${aws_vpc.main.id}
+      auto_accept: false
+      tags:
+        Name: VPC Peering between ${var.vpc_name} and adminVM vpc
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+      lifecycle:
+        ignore_changes: ${all}
+  aws_iam_user:
+    es_user:
+      name: ${var.vpc_name}_es_user
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+    fence-bot:
+      name: ${var.vpc_name}_fence-bot
+  aws_iam_access_key:
+    es_user_key:
+      user: ${aws_iam_user.es_user.name}
+    fence-bot_user_key:
+      user: ${aws_iam_user.fence-bot.name}
+  aws_security_group:
+  - local:
+      name: local
+      description: security group that only allow internal tcp traffics
+      vpc_id: ${aws_vpc.main.id}
+      ingress:
+        from_port: 0
+        to_port: 0
+        protocol: '-1'
+        cidr_blocks: ${local.cidrs}
+      egress:
+        from_port: 0
+        to_port: 0
+        protocol: '-1'
+        cidr_blocks: ${local.cidrs_no_peering}
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+        Name: ${var.vpc_name}-local-sec-group
+  - out:
+      name: out
+      description: security group that allow outbound traffics
+      vpc_id: ${aws_vpc.main.id}
+      egress:
+        from_port: 0
+        to_port: 0
+        protocol: '-1'
+        cidr_blocks: 0.0.0.0/0
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+        Name: ${var.vpc_name}-outbound-traffic
+  - proxy:
+      count: '${var.deploy_single_proxy ? 1 : 0 }'
+      name: squid-proxy
+      description: allow inbound tcp at 3128
+      vpc_id: ${aws_vpc.main.id}
+      ingress:
+        from_port: 0
+        to_port: 3128
+        protocol: TCP
+        cidr_blocks: ${local.cidrs}
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: Basic Service
+  - squidauto_in:
+      name: ${var.env_squid_name}-squidauto_in
+      description: security group that only enables ssh from VPC nodes and CSOC
+      vpc_id: ${var.env_vpc_id}
+      ingress:
+        from_port:
+        - 22
+        - 3128
+        - 80
+        - 443
+        to_port:
+        - 22
+        - 3128
+        - 80
+        - 443
+        protocol:
+        - TCP
+        - TCP
+        - TCP
+        - TCP
+        cidr_blocks:
+        - ${local.cidrs}
+        - ${local.cidrs}
+        - ${local.cidrs2}
+        - ${local.cidrs2}
+      tags:
+        Environment: ${var.env_squid_name}
+        Organization: ${var.organization_name}
+      lifecycle:
+        ignore_changes: ${description}
+  - squidauto_out:
+      name: ${var.env_squid_name}-squidauto_out
+      description: security group that allow outbound traffics
+      vpc_id: ${var.env_vpc_id}
+      egress:
+        from_port: 0
+        to_port: 0
+        protocol: '-1'
+        cidr_blocks: 0.0.0.0/0
+      tags:
+        Environment: ${var.env_squid_name}
+        Organization: ${var.organization_name}
+  - private_es:
+      name: private_es
+      description: security group that allow es port out
+      vpc_id: ${local.vpc_id}
+      ingress:
+        from_port: 0
+        to_port: 0
+        protocol: '-1'
+        cidr_blocks: ${local.all_cidr_blocks}
+      egress:
+        from_port: 0
+        to_port: 0
+        protocol: '-1'
+        cidr_blocks: ${local.all_cidr_blocks}
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+  - eks_nodes_sg:
+      name: ${var.vpc_name}_EKS_nodepool_${var.nodepool}_sg
+      description: 'Security group for all nodes in pool ${var.nodepool} in the EKS
+        cluster [${var.vpc_name}] '
+      vpc_id: ${local.vpc_id}
+      egress:
+        from_port: 0
+        to_port: 0
+        protocol: '-1'
+        cidr_blocks: 0.0.0.0/0
+      tags: '${tomap({"Name": "${var.vpc_name}-nodes-sg-${var.nodepool}", "kubernetes.io/cluster/${var.vpc_name}":
+        "owned", "karpenter.sh/discovery": "${var.vpc_name}-${var.nodepool}"})}'
+  - ssh:
+      name: ssh_eks_${var.vpc_name}-nodepool-${var.nodepool}
+      description: security group that only enables ssh
+      vpc_id: ${local.vpc_id}
+      ingress:
+        from_port: 22
+        to_port: 22
+        protocol: TCP
+        cidr_blocks: 0.0.0.0/0
+      tags:
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+        Name: ssh_eks_${var.vpc_name}-nodepool-${var.nodepool}
+        karpenter.sh/discovery: ${var.vpc_name}-${var.nodepool}
+  aws_iam_user_policy:
+  - fence-bot_policy:
+      name: ${var.vpc_name}_fence-bot_policy
+      user: ${aws_iam_user.fence-bot.name}
+      policy: "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n    \
+        \  \"Action\": [\n        \"s3:PutObject\",\n        \"s3:GetObject\",\n \
+        \       \"s3:DeleteObject\"\n      ],\n      \"Effect\": \"Allow\",\n    \
+        \  \"Resource\": [\"${data.aws_s3_bucket.data-bucket.arn}/*\"]\n    },\n \
+        \   {\n       \"Action\": [\n         \"s3:List*\",\n         \"s3:Get*\"\n\
+        \       ],\n      \"Effect\": \"Allow\",\n      \"Resource\": [\"${data.aws_s3_bucket.data-bucket.arn}/*\"\
+        , \"${data.aws_s3_bucket.data-bucket.arn}\"]\n    }\n  ]\n}"
+      lifecycle:
+        ignore_changes: ${policy}
+  - fence-bot_extra_policy:
+      count: ${length(var.bucket_access_arns)}
+      name: ${var.vpc_name}_fence-bot_policy_${count.index}
+      user: ${aws_iam_user.fence-bot.name}
+      policy: "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n    \
+        \  \"Action\": [\n        \"s3:PutObject\",\n        \"s3:GetObject\",\n \
+        \       \"s3:DeleteObject\"\n      ],\n      \"Effect\": \"Allow\",\n    \
+        \  \"Resource\": [\"${var.bucket_access_arns[count.index]}/*\"]\n    },\n\
+        \    {\n       \"Action\": [\n         \"s3:List*\",\n         \"s3:Get*\"\
+        \n       ],\n      \"Effect\": \"Allow\",\n      \"Resource\": [\"${var.bucket_access_arns[count.index]}/*\"\
+        , \"${var.bucket_access_arns[count.index]}\"]\n    }\n  ]\n}"
+  aws_iam_role_policy_attachment:
+  - eks-policy-AmazonSSMManagedInstanceCore:
+      policy_arn: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      role: ${aws_iam_role.squid-auto_role.id}
+  - data_bucket_reader:
+      role: ${aws_iam_role.data_bucket.name}
+      policy_arn: ${aws_iam_policy.data_bucket_reader.arn}
+  - data_bucket_writer:
+      role: ${aws_iam_role.data_bucket.name}
+      policy_arn: ${aws_iam_policy.data_bucket_writer.arn}
+  - trail_writer_role:
+      role: ${aws_iam_role.cloudtrail_to_cloudwatch_writer.name}
+      policy_arn: ${aws_iam_policy.trail_writer.arn}
+  - eks-policy-AmazonEKSClusterPolicy:
+      policy_arn: arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+      role: ${aws_iam_role.eks_control_plane_role.name}
+  - eks-policy-AmazonEKSServicePolicy:
+      policy_arn: arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+      role: ${aws_iam_role.eks_control_plane_role.name}
+  - eks-policy-AmazonSSMManagedInstanceCore:
+      policy_arn: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      role: ${aws_iam_role.eks_control_plane_role.name}
+  - eks-node-AmazonEKSWorkerNodePolicy:
+      policy_arn: arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+      role: ${aws_iam_role.eks_node_role.name}
+  - eks-node-AmazonEKS_CNI_Policy:
+      policy_arn: arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+      role: ${aws_iam_role.eks_node_role.name}
+  - eks-node-AmazonEKSCSIDriverPolicy:
+      policy_arn: arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+      role: ${aws_iam_role.eks_node_role.name}
+  - eks-node-AmazonEC2ContainerRegistryReadOnly:
+      policy_arn: arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      role: ${aws_iam_role.eks_node_role.name}
+  - cloudwatch_logs_access:
+      policy_arn: ${aws_iam_policy.cwl_access_policy.arn}
+      role: ${aws_iam_role.eks_node_role.name}
+  - asg_access:
+      policy_arn: ${aws_iam_policy.asg_access.arn}
+      role: ${aws_iam_role.eks_node_role.name}
+  - kernel_access:
+      policy_arn: ${aws_iam_policy.access_to_kernels.arn}
+      role: ${aws_iam_role.eks_node_role.name}
+  - hatchery-role-policy-attachment:
+      count: '${var.hatchery_enabled ? 1 : 0}'
+      role: ${aws_iam_role.hatchery-role[0].name}
+      policy_arn: arn:aws:iam::aws:policy/AWSResourceAccessManagerFullAccess
+  - new_attach:
+      count: '${var.secrets_manager_enabled ? 1 : 0}'
+      role: '${var.role != "" ? var.role : aws_iam_role.role[0].name}'
+      policy_arn: ${aws_iam_policy.secrets_manager_policy[0].arn}
+  aws_iam_instance_profile:
+    squid-auto_role_profile:
+      name: ${var.env_vpc_name}_squid-auto_role_profile
+      role: ${aws_iam_role.squid-auto_role.id}
+    eks_node_instance_profile:
+      name: ${var.vpc_name}_EKS_nodepool_${var.nodepool}
+      role: ${aws_iam_role.eks_node_role.name}
+  aws_launch_template:
+    squid_auto:
+      name_prefix: ${var.env_squid_name}-lt
+      instance_type: ${var.squid_instance_type}
+      image_id: ${data.aws_ami.public_squid_ami.id}
+      key_name: ${var.ssh_key_name}
+      iam_instance_profile:
+        name: ${aws_iam_instance_profile.squid-auto_role_profile.name}
+      network_interfaces:
+        associate_public_ip_address: true
+        security_groups: ${aws_security_group.squidauto_in.id} ${aws_security_group.squidauto_out.id}
+      user_data: "${sensitive(base64encode(\"MIME-Version: 1.0\nContent-Type: multipart/mixed;\
+        \ boundary=\"BOUNDARY\"\n\n--BOUNDARY\nContent-Type: text/x-shellscript; charset=\"\
+        us-ascii\"\n\n#!/bin/bash\nDISTRO=$(awk -F '[=\"]*' '/^NAME/ { print $2 }'\
+        \ < /etc/os-release)\nUSER=\"ubuntu\"\nif [[ $DISTRO == \"Amazon Linux\" ]];\
+        \ then\n  USER=\"ec2-user\"\n  if [[ $(awk -F '[=\"]*' '/^VERSION_ID/ { print\
+        \ $2 }' < /etc/os-release) == \"2023\" ]]; then\n    DISTRO=\"al2023\"\n \
+        \ fi\nfi\n(\n  if [[ $DISTRO == \"Amazon Linux\" ]]; then\n    sudo yum update\
+        \ -y\n    sudo yum install git lsof dracut-fips openssl rsync -y\n    sudo\
+        \ /sbin/grubby --update-kernel=ALL --args=\"fips=1\"\n    echo \"0 3 * * *\
+        \ root yum update --security -y\" | sudo tee /etc/cron.d/security-updates\n\
+        \  elif [[ $DISTRO == \"al2023\" ]]; then\n    sudo dnf update -y\n    sudo\
+        \ dnf install git rsync lsof docker crypto-policies crypto-policies-scripts\
+        \ -y\n    sudo fips-mode-setup --enable\n  fi\n) > /var/log/bootstrapping_script.log\n\
+        --BOUNDARY\nContent-Type: text/cloud-config; charset=\"us-ascii\"\n\npower_state:\n\
+        \    delay: now\n    mode: reboot\n    message: Powering off\n    timeout:\
+        \ 2\n    condition: true\n\n--BOUNDARY\nContent-Type: text/x-shellscript;\
+        \ charset=\"us-ascii\"\n\n#!/bin/bash\nDISTRO=$(awk -F '[=\"]*' '/^NAME/ {\
+        \ print $2 }' < /etc/os-release)\nUSER=\"ubuntu\"\nif [[ $DISTRO == \"Amazon\
+        \ Linux\" ]]; then\n  USER=\"ec2-user\"\n  if [[ $(awk -F '[=\"]*' '/^VERSION_ID/\
+        \ { print $2 }' < /etc/os-release) == \"2023\" ]]; then\n    DISTRO=\"al2023\"\
+        \n  fi\nfi\nUSER_HOME=\"/home/$USER\"\nCLOUD_AUTOMATION=\"$USER_HOME/cloud-automation\"\
+        \n(\n  cd $USER_HOME\n  if [[ ! -z \"${var.slack_webhook}\" ]]; then\n   \
+        \ echo \"${var.slack_webhook}\" > /slackWebhook\n  fi\n  git clone https://github.com/uc-cdis/cloud-automation.git\n\
+        \  cd $CLOUD_AUTOMATION\n  git pull\n\n  # This is needed temporarily for\
+        \ testing purposes ; before merging the code to master\n  if [ \"${var.branch}\"\
+        \ != \"master\" ];\n  then\n    git checkout \"${var.branch}\"\n    git pull\n\
+        \  fi\n  chown -R $USER. $CLOUD_AUTOMATION\n\n  echo \"127.0.1.1 ${var.env_squid_name}\"\
+        \ | tee --append /etc/hosts\n  hostnamectl set-hostname ${var.env_squid_name}\n\
+        \  if [[ $DISTRO == \"Ubuntu\" ]]; then\n    apt -y update\n    DEBIAN_FRONTEND='noninteractive'\
+        \ apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold'\
+        \ upgrade\n\n    apt autoremove -y\n    apt clean\n    apt autoclean\n  fi\n\
+        \  cd $USER_HOME\n\n  bash \"${var.bootstrap_path}${var.bootstrap_script}\"\
+        \ \"cwl_group=${var.env_log_group};${join(\";\",var.extra_vars)}\" 2>&1\n\
+        \  cd $CLOUD_AUTOMATION\n  git checkout master\n  # Install qualys agent if\
+        \ the activtion and customer id provided\n  # Amazon Linux does not support\
+        \ qualys agent (?)\n  # https://success.qualys.com/discussions/s/question/0D52L00004TnwvgSAB/installing-qualys-cloud-agent-on-amazon-linux-2-instances\n\
+        \  if [[ $DISTRO == \"Ubuntu\" ]]; then\n    if [[ ! -z \"${var.activation_id}\"\
+        \ ]] || [[ ! -z \"${var.customer_id}\" ]]; then\n      apt install awscli\
+        \ jq -y\n      aws s3 cp s3://qualys-agentpackage/QualysCloudAgent.deb ./qualys-cloud-agent.x86_64.deb\n\
+        \      dpkg -i ./qualys-cloud-agent.x86_64.deb\n      # Clean up deb package\
+        \ after install\n      rm qualys-cloud-agent.x86_64.deb\n      sudo /usr/local/qualys/cloud-agent/bin/qualys-cloud-agent.sh\
+        \ ActivationId=${var.activation_id} CustomerId=${var.customer_id}\n    fi\n\
+        \  fi\n) > /var/log/bootstrapping_script_part2.log\n--BOUNDARY--\"))}"
+      block_device_mappings:
+        device_name: /dev/xvda
+        ebs:
+          volume_size: ${var.squid_instance_drive_size}
+      tag_specifications:
+        resource_type: instance
+        tags:
+          Name: ${var.env_squid_name}
+      lifecycle:
+        create_before_destroy: true
+    eks_launch_template:
+      name_prefix: eks-${var.vpc_name}-nodepool-${var.nodepool}
+      instance_type: ${var.nodepool_instance_type}
+      image_id: ${data.aws_ami.eks_worker.id}
+      key_name: ${var.ec2_keyname}
+      iam_instance_profile:
+        name: ${aws_iam_instance_profile.eks_node_instance_profile.name}
+      network_interfaces:
+        associate_public_ip_address: false
+        security_groups: ${aws_security_group.eks_nodes_sg.id} ${aws_security_group.ssh.id}
+      user_data: '${sensitive(base64encode(templatefile("${path.module}/../../../../flavors/eks/${var.bootstrap_script}",
+        {"eks_ca": "${var.eks_cluster_ca}", "eks_endpoint": "${var.eks_cluster_endpoint}",
+        "eks_region": "${data.aws_region.current.name}", "vpc_name": "${var.vpc_name}",
+        "ssh_keys": "${templatefile("${path.module}/../../../../files/authorized_keys/ops_team",
+        {})}", "nodepool": "${var.nodepool}", "lifecycle_type": "ONDEMAND", "kernel":
+        "${var.kernel}", "activation_id": "${var.activation_id}", "customer_id": "${var.customer_id}"})))}'
+      block_device_mappings:
+        device_name: /dev/xvda
+        ebs:
+          volume_size: ${var.nodepool_worker_drive_size}
+      tag_specifications:
+        resource_type: instance
+        tags:
+          Name: eks-${var.vpc_name}-${var.nodepool}
+      lifecycle:
+        create_before_destroy: true
+  null_resource:
+  - service_depends_on:
+      triggers:
+        deps: ${jsonencode(var.squid_depends_on)}
+    config_setup:
+      provisioner:
+        local-exec:
+        - command: mkdir -p ${var.vpc_name}_output; echo '${templatefile("${path.module}/creds.tpl",
+            {fence_host = var.db_fence_address, fence_user = var.db_fence_username,
+            fence_pwd = var.db_fence_password, fence_db = var.db_fence_name, peregrine_host
+            = var.db_peregrine_address, sheepdog_host = var.db_sheepdog_address, sheepdog_user
+            = var.db_sheepdog_username, sheepdog_pwd = var.db_sheepdog_password, sheepdog_db
+            = var.db_sheepdog_name, peregrine_pwd = var.db_peregrine_password, indexd_host
+            = var.db_indexd_address, indexd_user = var.db_indexd_username, indexd_pwd
+            = var.db_indexd_password, indexd_db = var.db_indexd_name, hostname = var.hostname,
+            google_client_secret = var.google_client_secret, google_client_id = var.google_client_id,
+            hmac_encryption_key = var.hmac_encryption_key, sheepdog_secret_key = var.sheepdog_secret_key,
+            sheepdog_indexd_password = var.sheepdog_indexd_password, sheepdog_oauth2_client_id
+            = var.sheepdog_oauth2_client_id, sheepdog_oauth2_client_secret = var.sheepdog_oauth2_client_secret,
+            aws_user_key    = var.aws_user_key, aws_user_key_id = var.aws_user_key_id,
+            indexd_prefix   = var.indexd_prefix, mailgun_api_key = var.mailgun_api_key,
+            mailgun_api_url = var.mailgun_api_url, mailgun_smtp_host = var.mailgun_smtp_host})}'
+            >${var.vpc_name}_output/creds.json
+        - command: echo "${templatefile("${path.module}/00configmap.yaml", {vpc_name
+            = var.vpc_name, hostname = var.hostname, revproxy_arn = var.ssl_certificate_id,
+            gitops_path = var.gitops_path})}" > ${var.vpc_name}_output/00configmap.yaml
+  - db_setup:
+      provisioner:
+        local-exec:
+          command: psql -h ${data.aws_db_instance.database.address} -U ${var.admin_database_username}
+            -d ${var.admin_database_name} -c "CREATE DATABASE \"${local.database_name}\";"
+          environment:
+            PGPASSWORD: '${var.admin_database_password != "" ? var.admin_database_password
+              : data.aws_secretsmanager_secret_version.aurora-master-password.secret_string}'
+          on_failure: ${continue}
+      triggers:
+        database: ${local.database_name}
+  - user_setup:
+      provisioner:
+        local-exec:
+          command: "psql -h ${data.aws_db_instance.database.address} -U ${var.admin_database_username}\
+            \ -d ${var.admin_database_name} -c \"${templatefile(\"${path.module}/db_setup.tftpl\"\
+            , {\n          username  = local.database_username\n          database\
+            \  = local.database_name\n          password  = local.database_password\n\
+            \        })}\""
+          environment:
+            PGPASSWORD: '${var.admin_database_password != "" ? var.admin_database_password
+              : data.aws_secretsmanager_secret_version.aurora-master-password.secret_string}'
+      triggers:
+        username: ${local.database_username}
+        database: ${local.database_name}
+        password: ${local.database_password}
+      depends_on: ${null_resource.db_setup}
+  - db_restore:
+      count: '${var.db_restore && var.dump_file_to_restore != "" ? 1 : 0}'
+      provisioner:
+        local-exec:
+          interpreter: /bin/bash -c
+          command: "# If we have a role to assume, then assume it and set the credentials\n\
+            if [[ ${var.db_job_role_arn} != \"\" ]]; then\n  CREDENTIALS=(`aws sts\
+            \ assume-role --role-arn ${var.db_job_role_arn} --role-session-name \"\
+            db-migration-cli\" --query \"[Credentials.AccessKeyId,Credentials.SecretAccessKey,Credentials.SessionToken]\"\
+            \ --output text`)\n  unset AWS_PROFILE\n  export AWS_DEFAULT_REGION=us-east-1\n\
+            \  export AWS_ACCESS_KEY_ID=\"$${CREDENTIALS[0]}\"\n  export AWS_SECRET_ACCESS_KEY=\"\
+            $${CREDENTIALS[1]}\"\n  export AWS_SESSION_TOKEN=\"$${CREDENTIALS[2]}\"\
+            \nfi\n\naws s3 cp \"${var.dump_file_to_restore}\" - --quiet | psql -h\
+            \ \"${data.aws_db_instance.database.address}\" -U \"${local.database_username}\"\
+            \ -d \"${local.database_name}\"\necho \"Done restoring database\""
+          environment:
+            PGPASSWORD: ${local.database_password}
+      triggers:
+        username: ${local.database_username}
+        database: ${local.database_name}
+        password: ${local.database_password}
+      depends_on: ${null_resource.user_setup}
+  - db_dump:
+      count: '${var.db_dump && var.dump_file_storage_location != "" ? 1 : 0}'
+      provisioner:
+        local-exec:
+          interpreter: /bin/bash -c
+          command: "# If we have a role to assume, then assume it and set the credentials\n\
+            if [[ ${var.db_job_role_arn} != \"\" ]]; then\n  CREDENTIALS=(`aws sts\
+            \ assume-role --role-arn ${var.db_job_role_arn} --role-session-name \"\
+            db-migration-cli\" --query \"[Credentials.AccessKeyId,Credentials.SecretAccessKey,Credentials.SessionToken]\"\
+            \ --output text`)\n  unset AWS_PROFILE\n  export AWS_DEFAULT_REGION=us-east-1\n\
+            \  export AWS_ACCESS_KEY_ID=\"$${CREDENTIALS[0]}\"\n  export AWS_SECRET_ACCESS_KEY=\"\
+            $${CREDENTIALS[1]}\"\n  export AWS_SESSION_TOKEN=\"$${CREDENTIALS[2]}\"\
+            \nfi\n    \npg_dump --username=\"${local.database_username}\" --dbname=\"\
+            ${local.database_name}\" --host=\"${data.aws_db_instance.database.address}\"\
+            \ --no-password --no-owner --no-privileges >> ./dump.sql && aws s3 cp\
+            \ ./dump.sql ${var.dump_file_storage_location} && rm ./dump.sql\necho\
+            \ \"Done restoring database\""
+          environment:
+            PGPASSWORD: ${local.database_password}
+      triggers:
+        username: ${local.database_username}
+        database: ${local.database_name}
+        password: ${local.database_password}
+      depends_on: ${null_resource.user_setup}
+  aws_iam_service_linked_role:
+    squidautoscaling:
+      aws_service_name: autoscaling.amazonaws.com
+      custom_suffix: ${var.env_vpc_name}_squid
+      lifecycle:
+        ignore_changes: ${custom_suffix}
+    es:
+      count: '${var.es_linked_role ? 1 : 0}'
+      aws_service_name: es.amazonaws.com
+  aws_kms_grant:
+    kms:
+      count: '${var.fips ? 1 : 0}'
+      name: kms-cmk-eks
+      key_id: ${var.fips_ami_kms}
+      grantee_principal: ${aws_iam_service_linked_role.squidautoscaling.arn}
+      operations: Encrypt Decrypt ReEncryptFrom ReEncryptTo GenerateDataKey GenerateDataKeyWithoutPlaintext
+        DescribeKey CreateGrant
+  aws_autoscaling_group:
+    squid_auto:
+      name: ${var.env_squid_name}
+      service_linked_role_arn: ${aws_iam_service_linked_role.squidautoscaling.arn}
+      desired_capacity: ${var.cluster_desired_capasity}
+      max_size: ${var.cluster_max_size}
+      min_size: ${var.cluster_min_size}
+      vpc_zone_identifier: ${aws_subnet.squid_pub0.*.id}
+      depends_on: ${null_resource.service_depends_on} ${aws_route_table_association.squid_auto0}
+      launch_template:
+        id: ${aws_launch_template.squid_auto.id}
+        version: $Latest
+      tag:
+        key:
+        - Name
+        - Environment
+        value:
+        - ${var.env_squid_name}-grp-member
+        - ${var.organization_name}
+        propagate_at_launch:
+        - true
+        - true
+    eks_autoscaling_group:
+      desired_capacity: ${var.nodepool_asg_desired_capacity}
+      protect_from_scale_in: ${var.scale_in_protection}
+      max_size: ${var.nodepool_asg_max_size}
+      min_size: ${var.nodepool_asg_min_size}
+      name: eks-${var.nodepool}worker-node-${var.vpc_name}
+      vpc_zone_identifier: ${flatten([${var.eks_private_subnets}])}
+      launch_template:
+        id: ${aws_launch_template.eks_launch_template.id}
+        version: $Latest
+      tag:
+        key:
+        - Environment
+        - Name
+        - kubernetes.io/cluster/${var.vpc_name}
+        - k8s.io/cluster-autoscaler/enabled
+        - k8s.io/cluster-type/eks
+        - k8s.io/nodepool/${var.nodepool}
+        - k8s.io/cluster-autoscaler/node-template/label/role
+        - k8s.io/cluster-autoscaler/node-template/taint/role
+        value:
+        - ${var.vpc_name}
+        - eks-${var.vpc_name}-${var.nodepool}
+        - owned
+        - ''
+        - ''
+        - ''
+        - ${var.nodepool}
+        - ${var.nodepool}:NoSchedule
+        propagate_at_launch:
+        - true
+        - true
+        - true
+        - true
+        - true
+        - true
+        - true
+        - true
+      lifecycle:
+        ignore_changes: ${desired_capacity}
+  aws_s3_bucket:
+  - data_bucket:
+      bucket: ${var.vpc_name}-data-bucket
+      tags:
+        Name: ${var.vpc_name}-data-bucket
+        Environment: ${var.environment}
+        Purpose: data bucket
+  - log_bucket:
+      bucket: ${var.vpc_name}-data-bucket-logs
+      tags:
+        Name: ${var.vpc_name}
+        Environment: ${var.environment}
+        Purpose: logs bucket
+  - mybucket:
+      bucket: ${var.bucket_name}
+      lifecycle:
+        ignore_changes: tags tags_all
+  aws_s3_bucket_server_side_encryption_configuration:
+  - data_bucket:
+      bucket: ${aws_s3_bucket.data_bucket.bucket}
+      lifecycle:
+        ignore_changes: ${all}
+      rule:
+        apply_server_side_encryption_by_default:
+          sse_algorithm: aws:kms
+  - log_bucket:
+      bucket: ${aws_s3_bucket.log_bucket.bucket}
+      rule:
+        apply_server_side_encryption_by_default:
+          sse_algorithm: aws:kms
+  - default_kms_encryption:
+      count: '${var.aes_encryption ? 0 : var.kms_key_id != "" ? 0 : 1}'
+      bucket: ${aws_s3_bucket.mybucket.id}
+      rule:
+        apply_server_side_encryption_by_default:
+          sse_algorithm: aws:kms
+  - kms_key_encryption:
+      count: '${var.aes_encryption ? 0 : var.kms_key_id != "" ? 1 : 0}'
+      bucket: ${aws_s3_bucket.mybucket.id}
+      rule:
+        apply_server_side_encryption_by_default:
+          kms_master_key_id: ${var.kms_key_id}
+          sse_algorithm: aws:kms
+  - aes_encryption:
+      count: '${var.aes_encryption ? 1 : 0}'
+      bucket: ${aws_s3_bucket.mybucket.id}
+      rule:
+        apply_server_side_encryption_by_default:
+          sse_algorithm: AES256
+  aws_s3_bucket_logging:
+    data_bucket:
+      bucket: ${aws_s3_bucket.data_bucket.id}
+      target_bucket: ${aws_s3_bucket.log_bucket.id}
+      target_prefix: log/${var.vpc_name}-data-bucket/
+    mybucket:
+      count: '${var.logging_bucket_name != "" ? 1 : 0}'
+      bucket: ${aws_s3_bucket.mybucket.id}
+      target_bucket: ${var.logging_bucket_name}
+      target_prefix: log/${var.bucket_name}/
+      lifecycle:
+        ignore_changes: ${all}
+  aws_s3_bucket_public_access_block:
+  - data_bucket_privacy:
+      bucket: ${aws_s3_bucket.data_bucket.id}
+      block_public_acls: true
+      block_public_policy: true
+      ignore_public_acls: true
+      restrict_public_buckets: true
+  - data_bucket_logs_privacy:
+      bucket: ${aws_s3_bucket.log_bucket.id}
+      block_public_acls: true
+      block_public_policy: true
+      ignore_public_acls: true
+      restrict_public_buckets: true
+  - mybucket:
+      count: '${var.public_access_block ? 1 : 0}'
+      bucket: ${aws_s3_bucket.mybucket.id}
+      block_public_acls: ${var.block_public_acls}
+      block_public_policy: ${var.block_public_policy}
+      ignore_public_acls: ${var.ignore_public_acls}
+      restrict_public_buckets: ${var.restrict_public_buckets}
+  aws_s3_bucket_notification:
+    bucket_notification:
+      bucket:
+      - ${aws_s3_bucket.data_bucket.id}
+      - ${var.bucket_name}
+      topic:
+        topic_arn:
+        - ${module.data-bucket-queue.data-bucket_name}
+        - ${aws_sns_topic.user_updates.arn}
+        events:
+        - s3:ObjectCreated:Put s3:ObjectCreated:Post s3:ObjectCreated:Copy s3:ObjectCreated:CompleteMultipartUpload
+        - s3:ObjectCreated:Put s3:ObjectCreated:Post s3:ObjectCreated:Copy s3:ObjectCreated:CompleteMultipartUpload
+      count: '${var.configure_bucket_notifications ? 1 : 0}'
+      lifecycle:
+        ignore_changes: ${topic}
+  aws_s3_bucket_lifecycle_configuration:
+    log_bucket:
+      bucket: ${aws_s3_bucket.log_bucket.bucket}
+      rule:
+        status: Enabled
+        id: log
+        filter:
+          and:
+            prefix: /
+            tags:
+              rule: log
+              autoclean: 'true'
+        expiration:
+          days: 120
+    mybucket:
+      count: '${var.bucket_lifecycle_configuration != "" ? 1 : 0}'
+      bucket: ${aws_s3_bucket.mybucket.id}
+      rule:
+        status: Enabled
+        id: mybucket
+        abort_incomplete_multipart_upload:
+          days_after_initiation: 7
+  aws_s3_bucket_policy:
+    log_bucket_writer_by_ct:
+      bucket: ${aws_s3_bucket.log_bucket.id}
+      policy: "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n    \
+        \  \"Sid\": \"AWSCloudTrailAclCheck20150319\",\n      \"Effect\": \"Allow\"\
+        ,\n      \"Principal\": {\n         \"Service\": \"cloudtrail.amazonaws.com\"\
+        \n      },\n      \"Action\": \"s3:GetBucketAcl\",\n      \"Resource\": \"\
+        ${aws_s3_bucket.log_bucket.arn}\"\n    },\n\n    {\n      \"Sid\": \"AWSCloudTrailWrite20150319\"\
+        ,\n     \"Effect\": \"Allow\",\n      \"Principal\": {\n        \"Service\"\
+        : \"cloudtrail.amazonaws.com\"\n      },\n      \"Action\": \"s3:PutObject\"\
+        ,\n      \"Resource\": \"${aws_s3_bucket.log_bucket.arn}/*\",\n      \"Condition\"\
+        : {\n         \"StringEquals\": {\n         \"s3:x-amz-acl\": \"bucket-owner-full-control\"\
+        \n         }\n      }\n    }\n  ]\n}"
+    mybucket:
+      count: '${var.policy_role_arn != "" ? 1 : 0}'
+      bucket: ${aws_s3_bucket.mybucket.id}
+      policy: '${jsonencode({"Version": "2012-10-17", "Statement": [{"Effect": "Allow",
+        "Principal": {"AWS": "${var.policy_role_arn}"}, "Action": "${var.policy_actions}",
+        "Resource": ["${aws_s3_bucket.mybucket.arn}", "${aws_s3_bucket.mybucket.arn}/*"]}]})}'
+  aws_cloudtrail:
+    logger_trail:
+      name: ${var.vpc_name}-data-bucket-trail
+      s3_bucket_name: ${var.bucket_id}
+      s3_key_prefix: trail-logs
+      include_global_service_events: false
+      cloud_watch_logs_role_arn: ${aws_iam_role.cloudtrail_to_cloudwatch_writer.arn}
+      cloud_watch_logs_group_arn: ${var.cloudwatchlogs_group}:*
+      event_selector:
+        read_write_type: All
+        include_management_events: false
+        data_resource:
+          type: AWS::S3::Object
+          values: ${var.bucket_arn}/
+      lifecycle:
+        ignore_changes: ${all}
+      tags:
+        Name: ${var.vpc_name}_data-bucket
+        Environment: ${var.environment}
+        Purpose: trail_for_${var.vpc_name}_data_bucket
+  aws_sns_topic:
+    user_updates:
+      name: ${var.bucket_name}_sns_topic
+  aws_sqs_queue:
+    user_updates_queue:
+      name: ${var.bucket_name}_data_upload
+      visibility_timeout_seconds: 300
+    generic_queue:
+      name: ${var.sqs_name}
+      visibility_timeout_seconds: 300
+      message_retention_seconds: 1209600
+      tags:
+        Organization: gen3
+        description: Created by SQS module
+  aws_sns_topic_subscription:
+    user_updates_sqs_target:
+      topic_arn: ${aws_sns_topic.user_updates.arn}
+      protocol: sqs
+      endpoint: ${aws_sqs_queue.user_updates_queue.arn}
+  aws_sqs_queue_policy:
+    subscribe_sns:
+      queue_url: ${aws_sqs_queue.user_updates_queue.id}
+      policy: "{\n  \"Version\": \"2012-10-17\",\n  \"Id\": \"sqspolicy\",\n  \"Statement\"\
+        : [\n    {\n      \"Sid\": \"100\",\n      \"Effect\": \"Allow\",\n      \"\
+        Principal\": \"*\",\n      \"Action\": \"sqs:SendMessage\",\n      \"Resource\"\
+        : \"${aws_sqs_queue.user_updates_queue.arn}\",\n      \"Condition\": {\n \
+        \       \"ArnEquals\": {\n          \"aws:SourceArn\": \"${aws_sns_topic.user_updates.arn}\"\
+        \n        }\n      }\n    }\n  ]\n}"
+  aws_sns_topic_policy:
+    default:
+      arn: ${aws_sns_topic.user_updates.arn}
+      policy: ${data.aws_iam_policy_document.sns-topic-policy.json}
+  aws_cloudwatch_log_resource_policy:
+    es_logs:
+      policy_name: es_logs_for_${var.vpc_name}
+      policy_document: "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n  \
+        \  {\n      \"Effect\": \"Allow\",\n      \"Principal\": {\n        \"Service\"\
+        : \"es.amazonaws.com\"\n      },\n      \"Action\": [\n        \"logs:PutLogEvents\"\
+        ,\n        \"logs:PutLogEventsBatch\",\n        \"logs:CreateLogStream\"\n\
+        \      ],\n      \"Resource\": \"${data.aws_cloudwatch_log_group.logs_group.arn}:*\"\
+        \n    }\n  ]\n}"
+  aws_elasticsearch_domain:
+    gen3_metadata:
+      domain_name: '${var.es_name != "" ? var.es_name : "${var.vpc_name}-gen3-metadata"}'
+      elasticsearch_version: ${var.es_version}
+      access_policies: ${local.es_policy}
+      encrypt_at_rest:
+        enabled: ${var.encryption}
+      node_to_node_encryption:
+        enabled: ${var.encryption}
+      vpc_options:
+        security_group_ids: ${aws_security_group.private_es.id}
+        subnet_ids: ${data.aws_subnets.private.ids}
+      cluster_config:
+        instance_type: ${var.instance_type}
+        instance_count: ${var.instance_count}
+      ebs_options:
+        ebs_enabled: 'true'
+        volume_size: ${var.ebs_volume_size_gb}
+      log_publishing_options:
+        log_type: ES_APPLICATION_LOGS
+        cloudwatch_log_group_arn: ${data.aws_cloudwatch_log_group.logs_group.arn}:*
+        enabled: 'true'
+      advanced_options:
+        rest.action.multi.allow_explicit_index: 'true'
+      snapshot_options:
+        automated_snapshot_start_hour: 23
+      lifecycle:
+        ignore_changes: ${elasticsearch_version}
+      tags:
+        Name: gen3_metadata
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+      depends_on: ${aws_cloudwatch_log_resource_policy.es_logs} ${aws_iam_service_linked_role.es}
+  aws_vpc_peering_connection_accepter:
+    vpcpeering:
+      vpc_peering_connection_id: ${var.pcx_id}
+      auto_accept: true
+      tags:
+        Name: VPC Peering between ${var.vpc_name} and adminVM vpc
+        Environment: ${var.vpc_name}
+        Organization: ${var.organization_name}
+      lifecycle:
+        ignore_changes: ${all}
+  aws_security_group_rule:
+  - https_nodes_to_plane:
+      type: ingress
+      from_port: 443
+      to_port: 443
+      protocol: tcp
+      security_group_id: ${var.control_plane_sg}
+      source_security_group_id: ${aws_security_group.eks_nodes_sg.id}
+      depends_on: ${aws_security_group.eks_nodes_sg}
+  - communication_plane_to_nodes:
+      type: ingress
+      from_port: 80
+      to_port: 65534
+      protocol: tcp
+      security_group_id: ${aws_security_group.eks_nodes_sg.id}
+      source_security_group_id: ${var.control_plane_sg}
+      depends_on: ${aws_security_group.eks_nodes_sg}
+  - nodes_internode_communications:
+      type: ingress
+      from_port: 0
+      to_port: 0
+      protocol: '-1'
+      description: allow nodes to communicate with each other
+      security_group_id: ${aws_security_group.eks_nodes_sg.id}
+      self: true
+  - nodes_interpool_communications:
+      type: ingress
+      from_port: 0
+      to_port: 0
+      protocol: '-1'
+      description: allow default nodes to communicate with each other
+      security_group_id: ${aws_security_group.eks_nodes_sg.id}
+      source_security_group_id: ${var.default_nodepool_sg}
+  local_file:
+    values:
+      count: '${var.deploy_gen3 ? 1 : 0}'
+      filename: values.yaml
+      content: ${local.values}
+  aws_s3_bucket_ownership_controls:
+    mybucket:
+      bucket: ${aws_s3_bucket.mybucket.id}
+      rule:
+        object_ownership: ${var.bucket_ownership}
+  aws_s3_bucket_versioning:
+    name:
+      count: '${var.versioning ? 1 : 0}'
+      bucket: ${aws_s3_bucket.mybucket.id}
+      versioning_configuration:
+        status: Enabled

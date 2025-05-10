@@ -1,0 +1,45 @@
+name: PR-CI
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+      - 'environments/**'
+      - '.github/workflows/ci.yaml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+
+    - name: Lint and template (schema regression guard)
+      run: |
+        helm lint charts/web
+        helm template test charts/web -f environments/dev/values.yaml > /dev/null
+
+    - name: Spin Kind+LocalStack
+      uses: helm/kind-action@v1
+      with:
+        cluster_name: test
+    - name: Deploy LocalStack
+      run: |
+        helm repo add localstack https://localstack.github.io/helm-charts
+        helm upgrade --install localstack localstack/localstack --wait \
+          --set startServices="s3,dynamodb,sts"          # keep it minimal :contentReference[oaicite:1]{index=1}
+
+    - name: Install ACK controllers (local endpoints)
+      run: |
+        helm upgrade --install ack-s3 \
+          oci://public.ecr.aws/aws-controllers-k8s/s3-chart --version 1.5.1 \
+          --set aws.region=us-east-1 \
+          --set aws.endpointURL=http://localstack.localstack:4566
+
+    - name: Helm dry-run
+      run: >
+        helm upgrade --install web charts/web
+        --namespace web --create-namespace
+        --values environments/dev/values.yaml
+        --dry-run

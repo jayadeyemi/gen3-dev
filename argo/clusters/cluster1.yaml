@@ -1,0 +1,6 @@
+spec:
+  source:
+    path: charts
+    helm:
+      valueFiles:
+        - ../../environments/dev/values.yaml      # dev

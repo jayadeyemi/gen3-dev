@@ -1,0 +1,12 @@
+# Toggle each environment here:
+environments:
+  dev:     true    # your laptop/Kind
+  staging: false   # cloud staging
+  prod:    false   # cloud prod
+
+# Common Git repo info
+repo:
+  url:        "https://github.com/jayadeyemi/gen3-dev.git"
+  revision:   "main"
+  chartsPath: "charts"
+  destNamespace: "default" 

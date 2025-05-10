@@ -1,0 +1,6 @@
+apiVersion: v2
+name: csoc-argo
+description: "Argo CD App-of-Apps with Git-native on/off toggles"
+type: application
+version: 0.1.0
+appVersion: "1.0"

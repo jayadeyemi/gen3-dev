@@ -19,6 +19,37 @@
 # chmod +x ./kind
 # sudo mv ./kind /usr/local/bin/kind
 
+kind create cluster --name local-dev --config=values/kind-config.yaml
+kubectl create namespace argocd
+kubectl apply -n argocd \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl rollout status deploy/argocd-server -n argocd
+
+
+helm upgrade --install csoc-argo ./charts/csoc-argo \
+  --namespace argocd \
+  --set fence.FENCE_CONFIG.OPENID_CONNECT.google.client_id="$GOOGLE_CLIENT_ID" \
+  --set fence.FENCE_CONFIG.OPENID_CONNECT.google.client_secret="$GOOGLE_CLIENT_SECRET"
+
+
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+# then browse https://localhost:8080
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o=jsonpath="{.data.password}" | base64 --decode
+
+# 1) Install all ACK CRDs
+helm repo add ack https://public.ecr.aws/aws-controllers-k8s/ack-chart
+helm repo update
+helm install ack-crds ack/ack-crds --version=latest \
+  --namespace ack-system \
+  --create-namespace
+
+# 2) Install your controller chart (which depends on those CRDs)
+helm upgrade --install ack-controllers ./charts/ack-controllers \
+  --namespace ack-system \
+  --values values.yaml
+
+############################################################################
 # create a kind cluster
 kind create cluster --name gen3-dev --config values/kind-config.yaml
 

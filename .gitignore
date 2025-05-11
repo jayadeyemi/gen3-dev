@@ -5,6 +5,6 @@
 /logs
 **/*.pem
 **/variables.env
-/values/values.yaml
 /secret/*
 .github
+**/secrets.yaml

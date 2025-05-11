@@ -1,4 +1,8 @@
 kubectl create namespace <namespace> --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f argo/app-of-apps.yaml
+kubectl apply -f argo/clusters/dev.yaml       # on Dev
+kubectl apply -f argo/clusters/staging.yaml   # on Staging
+kubectl apply -f argo/clusters/prod.yaml      # on Prod
 helm install gen3-aws aws/acks --namespace    # Install the chart in a specific namespace
 
 

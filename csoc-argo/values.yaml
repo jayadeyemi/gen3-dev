@@ -4,7 +4,7 @@ argo:
   gitSecretName: argocd-git-credentials   # see “Injecting Git creds” below
   clusters:
     dev:
-      server:    https://<DEV-EKS-ENDPOINT>
+      server:    https://kubernetes.default.svc
       namespace: gen3-dev
     staging:
       server:    https://<STAGING-EKS-ENDPOINT>
@@ -24,4 +24,4 @@ repo:
   url:        "https://github.com/jayadeyemi/gen3-dev.git"
   revision:   "main"
   chartsPath: "charts"
-  destNamespace: "default" 
+  destNamespace: "default"

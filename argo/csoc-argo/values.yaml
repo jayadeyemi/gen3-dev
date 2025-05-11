@@ -1,3 +1,18 @@
+argo:
+  namespace: argocd
+  project:   default
+  gitSecretName: argocd-git-credentials   # see “Injecting Git creds” below
+  clusters:
+    dev:
+      server:    https://<DEV-EKS-ENDPOINT>
+      namespace: gen3-dev
+    staging:
+      server:    https://<STAGING-EKS-ENDPOINT>
+      namespace: gen3-staging
+    prod:
+      server:    https://<PROD-EKS-ENDPOINT>
+      namespace: gen3-prod
+
 # Toggle each environment here:
 environments:
   dev:     true    # your laptop/Kind

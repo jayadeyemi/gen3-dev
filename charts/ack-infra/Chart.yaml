@@ -1,0 +1,5 @@
+apiVersion: v2
+name: ack-infra
+description: Provision AWS resources for commons1 via ACK CRDs
+type: application
+version: 0.1.0

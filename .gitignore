@@ -2,9 +2,13 @@
 .git
 .vscode
 **/*.ppk
-/logs
+**/logs
 **/*.pem
 **/variables.env
-/secret/*
+**/secrets/*
 .github
 **/secrets.yaml
+# old-*
+**/old*/*
+
+collected_files.txt

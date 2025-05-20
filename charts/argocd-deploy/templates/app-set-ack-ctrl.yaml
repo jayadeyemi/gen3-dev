@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: ack-controllers-multi
+spec:
+  generators:
+  - list:
+      elements:
+      - cluster: kind-gen3-csoc
+        server: "https://kubernetes.default.svc"
+        namespace: ack-system-1
+        valuesDir: ack-controllers
+      - cluster: kind-gen3-csoc
+        server: "https://kubernetes.default.svc"
+        namespace: ack-system-2
+        valuesDir: ack-controllers
+
+  template:
+    metadata:
+      name: "{{.namespace}}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: gen3-commons
+      source:
+        repoURL: https://github.com/jayadeyemi/gen3-dev.git
+        targetRevision: main
+        path: charts/ack-controllers
+        helm:
+          values: |
+            serviceAccount.create: true
+          valueFiles:
+          - values/{{.valuesDir}}/values.yaml
+      destination:
+        server: "{{.server}}"
+        namespace: ack-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

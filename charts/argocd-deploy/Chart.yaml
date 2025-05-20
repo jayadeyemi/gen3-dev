@@ -1,0 +1,6 @@
+apiVersion: v2
+name: argocd-crds
+description: Umbrella chart that installs Argo CD into the csoc cluster
+type: application
+version: 0.1.0
+appVersion: 0.1.0          # Argo CD version you want

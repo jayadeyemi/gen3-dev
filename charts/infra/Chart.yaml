@@ -1,6 +1,0 @@
-apiVersion: v2
-name: network
-description: Chart for Network Resources on AWS
-version: 0.1.0
-appVersion: "latest"
-type: application

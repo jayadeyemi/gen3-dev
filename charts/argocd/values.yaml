@@ -1,0 +1,8 @@
+# applicationSet:
+#   ingress:
+#     enabled: false
+
+# server:
+#   ingress:
+#     enabled: false
+ 

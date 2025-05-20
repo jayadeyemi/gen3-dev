@@ -1,0 +1,26 @@
+# Toggle individual controllers
+ack:
+  acm:
+    enabled: false
+  route53resolver:
+    enabled: false
+  ec2:
+    enabled: true
+    replicas: 1
+    log:
+      Level: info
+      reconcileDefaultMaxConcurrentSyncs: 1
+    resourceTags: []
+    installScope: "namespace"
+    watchNamespace: "ack-network"
+    leaderElection:
+      enabled: false
+      namespace: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 200Mi
+      limits:
+        cpu: 100m
+        memory: 300Mi
+  # …other controller toggles…

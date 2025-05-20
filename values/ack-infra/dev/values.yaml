@@ -1,0 +1,9 @@
+vpc:
+  name: commons-vpc
+  namespace: "ack-network"  
+  cidrBlock1: "10.0.0.0/16"
+  enableDNSHostnames: true
+  enableDNSSupport: true
+  tags:
+    - Environment: dev
+    - Organization: MyOrg

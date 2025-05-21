@@ -30,8 +30,6 @@ spec:
         targetRevision: HEAD
         path: charts/ack-controllers
         helm:
-          values: |
-            serviceAccount.create: true
           valueFiles:
           - values/ack-controllers/{{.valuesDir}}/values.yaml
       destination:

@@ -1,7 +1,9 @@
-apiVersion: ec2.services.k8s.aws/v1alpha1
-kind: VPC
-metadata:
-  name: commons1-vpc
-spec:
-  cidrBlocks:
-    - 10.0.0.0/16
+vpc:
+  name: commons-vpc
+  namespace: "ack-network"  
+  cidrBlock1: "10.0.0.0/16"
+  enableDNSHostnames: true
+  enableDNSSupport: true
+  tags:
+    - Environment: prod
+    - Organization: MyOrg

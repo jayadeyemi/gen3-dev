@@ -8,20 +8,17 @@ spec:
       elements:
       - cluster: kind-gen3-csoc
         server: "https://kubernetes.default.svc"
-        namespace: ack-system-dev
         valuesDir: dev
       - cluster: kind-gen3-csoc
         server: "https://kubernetes.default.svc"
-        namespace: ack-system-staging
         valuesDir: staging
       - cluster: kind-gen3-csoc
         server: "https://kubernetes.default.svc"
-        namespace: ack-system-prod
         valuesDir: prod
 
   template:
     metadata:
-      name: "{{.namespace}}"
+      name: "ack-controllers-{{.valuesDir}}"
       annotations:
         argocd.argoproj.io/sync-wave: "1"
       finalizers:

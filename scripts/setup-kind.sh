@@ -61,8 +61,6 @@ argocd cluster add kind-gen3-csoc \
   --in-cluster \
   --upsert \
   --label app=csoc \
-  --label valuesDir=ack-controller \
-  --label namespace=ack-controllers \
   --yes
 
 

@@ -9,15 +9,15 @@ spec:
       - cluster: kind-gen3-csoc
         server: "https://kubernetes.default.svc"
         namespace: ack-system-dev
-        valuesDir: ack-controllers
+        valuesDir: dev
       - cluster: kind-gen3-csoc
         server: "https://kubernetes.default.svc"
         namespace: ack-system-staging
-        valuesDir: ack-controllers
+        valuesDir: staging
       - cluster: kind-gen3-csoc
         server: "https://kubernetes.default.svc"
         namespace: ack-system-prod
-        valuesDir: ack-controllers
+        valuesDir: prod
 
   template:
     metadata:
@@ -36,7 +36,7 @@ spec:
           values: |
             serviceAccount.create: true
           valueFiles:
-          - values/{{.valuesDir}}/values.yaml
+          - values/ack-controllers/{{.valuesDir}}/values.yaml
       destination:
         server: "{{.server}}"
         namespace: {{.namespace}}

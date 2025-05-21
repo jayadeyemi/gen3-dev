@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euxo pipefail
 IFS=$'\n\t'
-
 # 1. Create Kind clusters: csoc, dev, staging, prod
-for cluster in csoc dev staging prod; do
+for cluster in csoc; do
   kind get clusters | grep -q "^gen3-${cluster}$" || \
   kind create cluster --name "gen3-${cluster}" --config "config/${cluster}/config.yaml"
   kubectl --context="kind-gen3-${cluster}" apply \
@@ -11,10 +10,6 @@ for cluster in csoc dev staging prod; do
   kubectl --context="kind-gen3-${cluster}" create namespace test-namespace-${cluster} --dry-run=client -o yaml \
     | kubectl apply -f -
 done
-
-# 2. Install ingress-nginx on the CSOC cluster
-kubectl config use-context "kind-gen3-csoc"
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
 
 # 3. Add & update the Helm repos
 helm repo add argo https://argoproj.github.io/argo-helm
@@ -26,6 +21,9 @@ helm dependency build  charts/argocd
 helm dependency update charts/ack-controllers
 helm dependency build  charts/ack-controllers
 
+kubectl get namespace -o name | grep ack-systems || \
+  kubectl create namespace ack-systems
+  
 # 5. Install Argo CD Core
 helm upgrade --install argocd charts/argocd \
   --namespace argocd \
@@ -59,32 +57,15 @@ argocd login $ARGOCD_SERVER \
 # 9) Now add your Kind cluster
 argocd cluster add kind-gen3-csoc \
   --name kind-gen3-csoc \
-  --in-cluster \
   --insecure \
+  --in-cluster \
+  --upsert \
   --label app=csoc \
   --label valuesDir=ack-controller \
   --label namespace=ack-controllers \
   --yes
 
-# 10). Create three Kind clusters
-for cluster in dev staging prod; do
-  mkdir -p outputs
-  OUTPUT="outputs/kind-config-${cluster}.yaml"
-  kubectl config use-context "kind-gen3-${cluster}"
-  argocd cluster add kind-gen3-${cluster}  \
-    --name kind-gen3-${cluster} \
-    --label app=gen3 \
-    --label valuesDirInfra=ack-infra/${cluster} \
-    --label valuesDirGen3=gen3/${cluster} \
-    --label namespace=ack-infra-${cluster} \
-    --yes
-  kubectl config view \
-    --raw \
-    --minify \
-    --flatten \
-    --context="kind-gen3-${cluster}" \
-    > "${OUTPUT}"
-done
+
 
 
 

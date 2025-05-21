@@ -13,17 +13,17 @@ spec:
     metadata:
       name: "{{.name}}"
       annotations:
-        argocd.argoproj.io/sync-wave: "0"
+        argocd.argoproj.io/sync-wave: "2"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
       project: gen3-commons
       sources:
-        - repoURL: https://github.com/jayadeyemi/gen3-dev.git
-          targetRevision: main
-          path: charts/ack-controllers
+        - repoURL: github.com/jayadeyemi/gen3-dev.git
+          targetRevision: HEAD
+          path: charts/ack-infra
           helm:
-            releaseName: ack-controllers
+            releaseName: ack-infra
             valueFiles:
               - values/{{.valuesDirInfra}}/values.yaml
       destination:

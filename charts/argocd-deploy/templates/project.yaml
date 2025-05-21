@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: gen3-commons
+  namespace: argocd
+spec:
+  sourceRepos: 
+    - "github.com/jayadeyemi/gen3-dev.git"
+  description: This is just an example.
+  destinations:
+    - name: in-cluster
+      namespace: ack-system-dev
+      server: 'https://kubernetes.default.svc'
+    - name: in-cluster
+      namespace: ack-system-staging
+      server: 'https://kubernetes.default.svc'
+    - name: in-cluster
+      namespace: ack-system-prod
+      server: 'https://kubernetes.default.svc'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*' 

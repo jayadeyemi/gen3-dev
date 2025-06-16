@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # apiVersion: eksctl.io/v1alpha5
 # kind: Cluster
 # metadata:
@@ -21,3 +22,4 @@
 
 terraform init
 terraform plan -out=tfplan.bin -var-file=secrets.tfvars && terraform show -json tfplan.bin | jq . > plan.json
+

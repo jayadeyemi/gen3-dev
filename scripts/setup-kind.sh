@@ -2,14 +2,18 @@
 set -euxo pipefail
 IFS=$'\n\t'
 # 1. Create Kind clusters: csoc, dev, staging, prod
-for cluster in csoc; do
-  kind get clusters | grep -q "^gen3-${cluster}$" || \
-  kind create cluster --name "gen3-${cluster}" --config "config/${cluster}/config.yaml"
-  kubectl --context="kind-gen3-${cluster}" apply \
-    -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-  kubectl --context="kind-gen3-${cluster}" create namespace test-namespace-${cluster} --dry-run=client -o yaml \
-    | kubectl apply -f -
+cluster=csoc
+kind get clusters | grep -q "^gen3-${cluster}$" || \
+kind create cluster --name "gen3-${cluster}" --config "config/${cluster}/config.yaml"
+for ns in ack-network ack-system-dev ack-system-staging ack-system-prod; do
+  kubectl --context="kind-gen3-csoc" create namespace $ns --dry-run=client -o yaml | kubectl apply -f -
 done
+
+kubectl --context="kind-gen3-${cluster}" apply \
+  -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+kubectl --context="kind-gen3-${cluster}" create namespace test-namespace-${cluster} --dry-run=client -o yaml \
+  | kubectl apply -f -
+
 
 # 3. Add & update the Helm repos
 helm repo add argo https://argoproj.github.io/argo-helm

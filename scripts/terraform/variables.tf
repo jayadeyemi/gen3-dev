@@ -1,0 +1,28 @@
+variable "AWS_ACCOUNT_ID" {
+  description = "AWS account ID"
+  type        = string
+  default     = "123456789012"
+  
+}
+variable "region" {
+  description = "AWS region"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "cluster_name" {
+  description = "Name of the EKS cluster"
+  type        = string
+  default     = "gen3-eks-cluster"
+}
+
+
+variable "ack_service_map" {
+    description = "Map of ACK service names to their versions"
+    type        = map(string)
+    default     = {
+        # "service_name" = "version"
+        "s3" = "1.1.3"
+    }
+  
+}

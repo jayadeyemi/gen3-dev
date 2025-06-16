@@ -1,5 +1,0 @@
-# Toggle individual controllers
-ack:
-  ec2:
-    enabled: true
-  # …other controller toggles…

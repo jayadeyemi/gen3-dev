@@ -12,3 +12,30 @@
 **/old*/*
 
 collected_files.txt
+
+
+
+
+# Temporary and lock files
+*.tmp
+/**/tmp/
+package-lock.json
+
+# Ignore Terraform hidden directories
+/**/.terraform/*
+
+# Ignore outputs folder
+**/outputs
+# Ignore Terraform state files inside terraform/ and subdirectories
+/**/*.tfstate
+/**/*.backup
+/**/tfplan
+/**/*.tfplan.json
+/**/*.tfworkspace
+/**/*.tfstate.d/
+/**/*.crash.log
+/**/*.log
+/**/secrets.tfvars
+# Ignore hcl lock files
+/**/*.hcl
+/**/*.lock.info

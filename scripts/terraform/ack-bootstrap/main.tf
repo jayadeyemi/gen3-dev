@@ -29,19 +29,13 @@ EOF
   }
 }
 
-############################
-# 4. Deploy ACK S3 controller
-############################
 
 
-resource "helm_release" "ack_service_controller" {
-  for_each   = local.service_config
-  depends_on = [module.irsa_ack_service]
 
-  name             = "ack-${each.key}-controller"
-  chart            = "oci://public.ecr.aws/aws-controllers-k8s/${each.key}-chart"
-  version          = each.value.version
-  namespace        = each.value.namespace
+resource "helm_release" "ack_chart" {
+  name             = "ack-controllers"
+  chart            = "../../../charts/ack-controllers"
+  namespace        = "ack-system"
   create_namespace = true
 
   set {
@@ -51,11 +45,38 @@ resource "helm_release" "ack_service_controller" {
 
   set {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = each.value.policy_arn
-  }
-
-  set {
-    name  = "serviceAccount.name"
-    value = each.value.service_account_name
+    value = "arn:aws:iam::aws:policy/AdministratorAccess"
   }
 }
+
+############################
+# 4. Deploy ACK S3 controller
+############################
+
+
+# resource "helm_release" "ack_service_controller" {
+#   for_each   = local.service_config
+#   depends_on = [module.irsa_ack_service]
+
+#   name             = "ack-${each.key}-controller"
+#   chart            = "${each.key}-chart"
+#   repository       = "oci://public.ecr.aws/aws-controllers-k8s"
+#   version          = each.value.version
+#   namespace        = each.value.namespace
+#   create_namespace = true
+
+#   set {
+#     name  = "aws.region"
+#     value = var.region
+#   }
+
+#   set {
+#     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+#     value = each.value.policy_arn
+#   }
+
+#   set {
+#     name  = "serviceAccount.name"
+#     value = each.value.service_account_name
+#   }
+# }

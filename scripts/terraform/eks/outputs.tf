@@ -23,5 +23,18 @@ output "eks_oidc_issuer_url" {
 
 output "eks_cluster_name" {
   description = "Unique name of the EKS cluster"
-  value       = local.cluster_name
+  value       = local.eks_cluster_name
 }
+
+# output "eks_cluster_ca_data" {
+#   description = "Base64-encoded CA certificate for the EKS cluster"
+#   value       = module.eks.cluster_certificate_authority_data
+# }
+# output "eks_cluster_client_cert_data" {
+#   description = "Base64-encoded client certificate for the EKS cluster"
+#   value       = module.eks.cluster_client_cert_data
+# }
+# output "eks_cluster_client_key_data" {
+#   description = "Base64-encoded client key for the EKS cluster"
+#   value       = module.eks.cluster_tls_certificate_sha1_fingerprint
+# }

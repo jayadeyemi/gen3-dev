@@ -1,6 +1,3 @@
-#/!/bin/bash
-set -euo pipefail
-
 # apiVersion: eksctl.io/v1alpha5
 # kind: Cluster
 # metadata:
@@ -22,10 +19,7 @@ set -euo pipefail
 #     tags:
 #       environment: dev
 
-
+# remove the random suffix from the cluster name
+terraform state rm 'module.gen3-commons.module.gen3-eks.random_string.suffix' > /dev/null || true
 # Terraform plan
-terraform init
-terraform plan -out=tfplan.bin -var-file=secrets.tfvars && terraform show -json tfplan.bin | jq . > tfplan.json
-
-# Apply the plan and output results
-terraform apply tfplan.bin && terraform output -json | jq . > output.json
+terraform destroy -auto-approve

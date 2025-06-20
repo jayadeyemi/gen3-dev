@@ -1,0 +1,34 @@
+{
+  "ack_controller_role_arns": {
+    "sensitive": false,
+    "type": [
+      "object",
+      {
+        "s3": "string"
+      }
+    ],
+    "value": {
+      "s3": "arn:aws:iam::682033468861:role/ACK-controller-gen3-eks-cluster-WV2h-s3"
+    }
+  },
+  "cluster_endpoint": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://187E0145EEAD3B901E6212609420D8F5.gr7.us-east-1.eks.amazonaws.com"
+  },
+  "cluster_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "gen3-eks-cluster-WV2h"
+  },
+  "cluster_security_group_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "sg-0ed9b4b406f696f55"
+  },
+  "region": {
+    "sensitive": false,
+    "type": "string",
+    "value": "us-east-1"
+  }
+}

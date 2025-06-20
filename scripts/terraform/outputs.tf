@@ -22,7 +22,7 @@ output "ack_controller_role_arns" {
   value = module.gen3-ack-controllers.ack_controller_role_arns
 }
 
-output "ack_controller_statuses" {
-  description = "Helm release status for each ACK controller"
-  value = module.gen3-ack-controllers.ack_controller_statuses
-}
+# output "ack_controller_statuses" {
+#   description = "Helm release status for each ACK controller"
+#   value = module.gen3-ack-controllers.ack_controller_statuses
+# }

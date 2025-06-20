@@ -1,6 +1,6 @@
 
 locals {
-  cluster_name = "${var.cluster_name}-${random_string.suffix.result}"
+  eks_cluster_name = var.eks_cluster_random_suffix != "" ? "${var.eks_cluster_name}-${var.eks_cluster_random_suffix}" : "${var.eks_cluster_name}-${random_string.suffix.result}"
 }
 
 data "aws_availability_zones" "available" {
@@ -16,4 +16,10 @@ data "aws_iam_policy" "ebs_csi_policy" {
 
 
 
-  
+data "aws_eks_cluster" "eks" {
+  name = module.eks.cluster_name
+}
+
+data "aws_eks_cluster_auth" "eks" {
+  name = module.eks.cluster_name
+}

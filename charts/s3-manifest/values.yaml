@@ -1,0 +1,3 @@
+s3:
+  enabled: true
+  bucketName: "gen3-ack-infra-6r92"

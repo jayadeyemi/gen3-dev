@@ -1,8 +1,14 @@
 # Modules
 module "gen3-commons" {
-  source                    = "./scripts/terraform"
+  source                    = "./terraform"
+  aws_profile               = var.aws_profile
+  region                    = var.region
+  vpc_name                  = var.vpc_name
+  vpc_cidr                  = var.vpc_cidr
+  vpc_private_subnets       = var.vpc_private_subnets
+  vpc_public_subnets        = var.vpc_public_subnets
   eks_cluster_name          = var.eks_cluster_name
   eks_cluster_random_suffix = var.eks_cluster_random_suffix
-  region                    = var.region
-  ack_service_map           = var.ack_service_map
+  cluster_user_ips          = var.cluster_user_ips
+  helm_services             = var.helm_services
 }

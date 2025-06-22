@@ -9,13 +9,13 @@ output "ack_controller_role_arns" {
   }
 }
 
-# # -----------------------------------------------------------------------------
-# # Map of Helm release statuses, keyed by service (e.g. "s3" → "deployed")
-# # -----------------------------------------------------------------------------
-# output "ack_controller_statuses" {
+# -----------------------------------------------------------------------------
+# Map of Helm release statuses, keyed by service (e.g. "s3" → "deployed")
+# -----------------------------------------------------------------------------
+# output "ack_chart_statuses" {
 #   description = "Helm release status for each ACK controller, keyed by service"
 #   value = {
-#     for svc, rel in helm_release.ack_service_controller :
+#     for svc, rel in helm_release.ack_chart :
 #     svc => rel.status
 #   }
 # }

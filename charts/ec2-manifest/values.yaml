@@ -1,0 +1,15 @@
+vpc:
+  enabled: true
+  name: "ack-test-vpc"
+  cidrBlock1: "172.16.0.0/16"
+  cidrBlock2: ""
+  cidrBlock3: ""
+  cidrBlock4: ""
+  enableDNSHostnames: true
+  enableDNSSupport: true
+  tags:
+    - Name: "ack-test-vpc"
+    - environment: test
+    - provisioner: terraform-helm-ack
+
+    # additional tags

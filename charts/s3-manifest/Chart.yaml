@@ -1,0 +1,5 @@
+apiVersion: v2
+name: s3-manifest
+description: Provision AWS S3 resources via ACK CRDs
+type: application
+version: 0.1.0

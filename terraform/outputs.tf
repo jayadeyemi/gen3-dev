@@ -1,11 +1,11 @@
-output "cluster_endpoint" {
+output "eks_cluster_endpoint" {
   description = "Endpoint for EKS control plane"
-  value       = module.gen3-eks.cluster_endpoint
+  value       = module.gen3-eks.eks_cluster_endpoint
 }
 
-output "cluster_security_group_id" {
+output "eks_cluster_security_group_id" {
   description = "Security group ids attached to the cluster control plane"
-  value       = module.gen3-eks.cluster_security_group_id
+  value       = module.gen3-eks.eks_cluster_security_group_id
 }
 
 output "region" {
@@ -13,7 +13,7 @@ output "region" {
   value       = var.region
 }
 
-output "cluster_name" {
+output "eks_cluster_name" {
   description = "Kubernetes Cluster Name"
   value       = module.gen3-eks.eks_cluster_name
 }
@@ -22,7 +22,7 @@ output "ack_controller_role_arns" {
   value = module.gen3-ack-controllers.ack_controller_role_arns
 }
 
-# output "ack_controller_statuses" {
+# output "ack_chart_statuses" {
 #   description = "Helm release status for each ACK controller"
-#   value = module.gen3-ack-controllers.ack_controller_statuses
+#   value = module.gen3-ack-controllers.ack_chart_statuses
 # }

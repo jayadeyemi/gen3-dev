@@ -1,0 +1,12 @@
+{{- if .Values.s3.enabled }}
+apiVersion: s3.services.k8s.aws/v1alpha1
+kind: Bucket
+metadata:
+  name: {{ .Values.s3.bucketName | lower | quote }}
+spec:
+  name: {{ .Values.s3.bucketName | lower | quote }}
+  tagging:
+    tagSet:
+    - key: Environment
+      value: Jimi_Test
+{{- end }}

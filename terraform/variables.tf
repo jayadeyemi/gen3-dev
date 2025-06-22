@@ -37,6 +37,12 @@ variable "vpc_public_subnets" {
   default     = []
 }
 
+variable "cluster_user_ips" {
+  description = "IP addresses of the users for external access to the cluster"
+  type        = list(string)
+  default     = []
+}
+
 variable "eks_cluster_name" {
   description = "unique name of the EKS cluster"
   type        = string
@@ -49,22 +55,16 @@ variable "eks_cluster_random_suffix" {
   default     = ""
 }
 
-variable "cluster_user_ips" {
-  description = "IP addresses of the users for external access to the cluster"
-  type        = list(string)
-  default     = []
-}
-
 variable "helm_services" {
   type = list(object({
     name       = string
     policy_arn = string
     version    = string
-    }))
+  }))
 
   default     = [{
     name = "s3"
-    version = "1.1.3"
+    version = "1.0.33"
     policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
   }]
 }

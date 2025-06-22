@@ -2,7 +2,7 @@
 .git
 .vscode
 **/*.ppk
-**/logs
+**/logs/*
 **/*.pem
 **/variables.env
 **/secrets/*
@@ -25,7 +25,8 @@ package-lock.json
 /**/.terraform/*
 
 # Ignore outputs folder
-**/outputs
+**/outputs/*
+**/output/*
 # Ignore Terraform state files inside terraform/ and subdirectories
 /**/*.tfstate
 /**/*.backup

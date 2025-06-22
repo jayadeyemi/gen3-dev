@@ -1,25 +1,10 @@
-# apiVersion: eksctl.io/v1alpha5
-# kind: Cluster
-# metadata:
-#   name: dev-cluster
-#   region: us-east-1
-#   version: "1.27"
+#!/bin/bash
 
-# # let eksctl create VPC + subnets for me
-# vpc:
-#   autoCreate: true
-
-# nodeGroups:
-#   - name: ng-dev
-#     instanceType: t3.medium
-#     desiredCapacity: 2
-#     minSize: 1
-#     maxSize: 3
-#     labels: { role: dev }
-#     tags:
-#       environment: dev
-
-# remove the random suffix from the cluster name
 terraform state rm 'module.gen3-commons.module.gen3-eks.random_string.suffix' > /dev/null || true
 # Terraform plan
-terraform destroy -auto-approve
+terraform destroy -auto-approve #-refresh=false
+
+# Remove the outputs directory if it exists
+if [ -d "$PWD/outputs" ]; then
+  rm -rf $PWD/outputs
+fi

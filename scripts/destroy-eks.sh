@@ -7,5 +7,5 @@ terraform destroy -auto-approve -refresh=false
 
 # Remove the outputs directory if it exists
 if [ -d "${script_dir}/outputs" ]; then
-  rm -rf "${script_dir}/outputs"
+  rm "${script_dir}/outputs"
 fi

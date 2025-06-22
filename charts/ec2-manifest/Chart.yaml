@@ -2,4 +2,4 @@ apiVersion: v2
 name: ec2-manifest
 description: Provision AWS EC2 resources via ACK CRDs
 type: application
-version: 0.1.0
+version: 0.1.1

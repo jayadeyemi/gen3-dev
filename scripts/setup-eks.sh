@@ -6,7 +6,7 @@
 # Toggles
 HELM_TEMPLATE_ENABLED=1      # 1 = run helm template loop
 TERRAFORM_APPLY_ENABLED=1    # 1 = run terraform apply
-UPDATE_KUBECONFIG_ENABLED=0  # 1 = update kubeconfig at the end
+UPDATE_KUBECONFIG_ENABLED=1  # 1 = update kubeconfig at the end
 
 # Alias for the EKS context that kubectl will use
 KUBE_ALIAS="gen3"

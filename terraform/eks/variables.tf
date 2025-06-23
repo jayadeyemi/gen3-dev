@@ -1,16 +1,13 @@
-# Copyright (c) HashiCorp, Inc.
-# SPDX-License-Identifier: MPL-2.0
+variable "aws_profile" {
+  description = "Username of the creator"
+  type        = string
+  default     = ""
+}
 
 variable "region" {
   description = "AWS region"
   type        = string
   default     = "us-east-2"
-}
-
-variable "aws_profile" {
-  description = "Username of the creator"
-  type        = string
-  default     = ""
 }
 
 variable "vpc_name" {
@@ -19,20 +16,14 @@ variable "vpc_name" {
   default     = "gen3-vpc"
 }
 
-variable "vpc_cidr" {
-  description = "CIDR block for the VPC"
+variable "vpc_id" {
+  description = "ID of the VPC"
   type        = string
   default     = ""
 }
 
-variable "vpc_private_subnets" {
-  description = "List of private subnet CIDRs"
-  type        = list(string)
-  default     = []
-}
-
-variable "vpc_public_subnets" {
-  description = "List of public subnet CIDRs"
+variable "vpc_private_subnet_ids" {
+  description = "List of private subnet IDs in the VPC"
   type        = list(string)
   default     = []
 }
@@ -53,4 +44,12 @@ variable "cluster_user_ips" {
   description = "IP addresses of the users for external access to the cluster"
   type        = list(string)
   default     = []
+}
+
+variable "tags" {
+  description   = "Tags to apply to all resources"
+  type          = map(string)
+  default       = {
+    "CreatedBy" = "terraform"
+  }
 }

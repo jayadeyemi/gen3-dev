@@ -68,3 +68,27 @@ variable "helm_services" {
     policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
   }]
 }
+
+variable "kro_chart_version" {
+  description = "Version of the KRO controller Helm chart to install"
+  type        = string
+  default     = "1.0.0"  # Adjust as needed
+}
+
+variable "kro_namespace" {
+  description = "Kubernetes namespace where the KRO controller will be deployed"
+  type        = string
+  default     = "kro-system"  # Default namespace for KRO controllers
+}
+
+variable "kro_service_list" {
+  description = "list of services which will be deployed by KRO controller"
+  type        = list(string)
+  default     = ["s3"]
+}
+
+variable "kro_manifest" {
+  description = "KRO manifest file path"
+  type        = string
+  default     = "kro-manifest"  # Default name to the KRO manifest file
+}

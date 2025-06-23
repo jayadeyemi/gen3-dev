@@ -19,12 +19,12 @@ output "eks_cluster_name" {
     value       = module.gen3-commons.eks_cluster_name
 }
 
-output "ack_controller_role_arns" {
+output "ack_helm_controller_role_arns" {
   description = "IAM role ARNs for each ACK controller, keyed by service"
-  value = module.gen3-commons.ack_controller_role_arns
+  value = module.gen3-commons.ack_helm_controller_role_arns
 }
 
-# output "ack_chart_statuses" {
-#   description = "Helm release status for each ACK controller"
-#   value = module.gen3-commons.ack_chart_statuses
-# }
+output "ack_kro_controller_role_arn" {
+  description = "IAM role ARN for the ACK KRO controller" 
+    value       = module.gen3-commons.ack_kro_controller_role_arn
+}

@@ -25,13 +25,13 @@ variable "vpc_cidr" {
   default     = ""
 }
 
-variable "vpc_private_subnets" {
+variable "vpc_private_subnet_cidrs" {
   description = "List of private subnet CIDRs"
   type        = list(string)
   default     = []
 }
 
-variable "vpc_public_subnets" {
+variable "vpc_public_subnet_cidrs" {
   description = "List of public subnet CIDRs"
   type        = list(string)
   default     = []

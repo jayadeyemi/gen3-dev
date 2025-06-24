@@ -28,18 +28,6 @@ variable "vpc_cidr" {
   default     = ""
 }
 
-variable "vpc_private_subnets" {
-  description = "List of private subnet CIDRs"
-  type        = list(string)
-  default     = []
-}
-
-variable "vpc_public_subnets" {
-  description = "List of public subnet CIDRs"
-  type        = list(string)
-  default     = []
-}
-
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)

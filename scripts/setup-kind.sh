@@ -67,9 +67,6 @@
 #   --label app=csoc \
 #   --yes
 
-# resolve the directory where this script file resides
-script_dir="$(pwd)"
-echo "Script is located in: $script_dir"
 
 
 

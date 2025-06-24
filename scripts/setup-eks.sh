@@ -4,7 +4,7 @@
 
 ###############################################################################
 # Toggles
-HELM_TEMPLATE_ENABLED=1      # 1 = run helm template loop
+HELM_TEMPLATE_ENABLED=0      # 1 = run helm template loop
 TERRAFORM_APPLY_ENABLED=1    # 1 = run terraform apply
 UPDATE_KUBECONFIG_ENABLED=1  # 1 = update kubeconfig at the end
 

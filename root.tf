@@ -5,8 +5,6 @@ module "gen3-commons" {
   region                    = var.region
   vpc_name                  = var.vpc_name
   vpc_cidr                  = var.vpc_cidr
-  vpc_private_subnets       = var.vpc_private_subnets
-  vpc_public_subnets        = var.vpc_public_subnets
   eks_cluster_name          = var.eks_cluster_name
   eks_cluster_random_suffix = var.eks_cluster_random_suffix
   cluster_user_ips          = var.cluster_user_ips

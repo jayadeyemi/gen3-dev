@@ -44,8 +44,6 @@ module "gen3-vpc" {
   azs                       = slice(data.aws_availability_zones.available.names, 0, 3)
   vpc_name                  = var.vpc_name
   vpc_cidr                  = var.vpc_cidr
-  vpc_private_subnets       = var.vpc_private_subnets
-  vpc_public_subnets        = var.vpc_public_subnets
   tags                      = local.tags
 }
 
@@ -55,7 +53,7 @@ module "gen3-eks" {
   region                    = var.region
   vpc_name                  = var.vpc_name
   vpc_id                    = module.gen3-vpc.vpc_id
-  vpc_private_subnet_ids       = module.gen3-vpc.vpc_private_subnet_ids
+  vpc_private_subnet_ids    = module.gen3-vpc.private_subnet_ids
   eks_cluster_name          = local.eks_cluster_name
   eks_cluster_random_suffix = var.eks_cluster_random_suffix
   cluster_user_ips          = var.cluster_user_ips

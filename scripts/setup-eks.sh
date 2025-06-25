@@ -81,3 +81,7 @@ if [[ "$UPDATE_KUBECONFIG_ENABLED" -eq 1 ]]; then
   kubectl config use-context "${KUBE_ALIAS}"
   kubectl get pods --all-namespaces
 fi
+
+# helm get manifest ack-ec2-controller-ec2-chart --namespace ack-system > ack-ec2-controller.yaml
+
+# helm get manifest ack-s3-controller-s3-chart --namespace ack-system > ack-s3-controller.yaml

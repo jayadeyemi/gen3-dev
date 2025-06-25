@@ -43,7 +43,7 @@ variable "cluster_user_ips" {
   default     = []
 }
 
-variable "helm_services" {
+variable "ack_services" {
   type = list(object({
     name       = string
     policy_arn = string
@@ -60,19 +60,13 @@ variable "helm_services" {
 variable "kro_chart_version" {
   description = "Version of the KRO controller Helm chart to install"
   type        = string
-  default     = "1.0.0"  # Adjust as needed
+  default     = "0.3.0"  # Adjust as needed
 }
 
 variable "kro_namespace" {
   description = "Kubernetes namespace where the KRO controller will be deployed"
   type        = string
   default     = "kro-system"  # Default namespace for KRO controllers
-}
-
-variable "kro_service_list" {
-  description = "list of services which will be deployed by KRO controller"
-  type        = list(string)
-  default     = ["s3"]
 }
 
 variable "kro_manifest" {

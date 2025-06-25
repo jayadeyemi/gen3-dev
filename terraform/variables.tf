@@ -55,7 +55,7 @@ variable "cluster_user_ips" {
   default     = []
 }
 
-variable "helm_services" {
+variable "ack_services" {
   type = list(object({
     name       = string
     policy_arn = string
@@ -81,17 +81,6 @@ variable "kro_namespace" {
   default     = "kro-system"  # Default namespace for KRO controllers
 }
 
-variable "kro_service_list" {
-  description = "list of services which will be deployed by KRO controller"
-  type        = list(string)
-  default     = [ "s3" ]
-}
-
-variable "kro_policy_arns" {
-  description = "ARN of the IAM role for KRO controller IRSA"
-  type        = list(string)
-  default     = [ "" ]  # This should be set to the actual role ARN
-}
 variable "kro_manifest" {
   description = "List of Kubernetes manifests to apply for KRO controller"
   type        = string

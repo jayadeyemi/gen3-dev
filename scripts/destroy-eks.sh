@@ -1,7 +1,7 @@
 #!/bin/bash
 script_dir="$(pwd)"
 
-terraform state rm 'module.gen3-commons.module.gen3-eks.random_string.suffix' > /dev/null || true
+terraform state rm 'module.gen3-commons.random_string.suffix' > /dev/null || true
 # Terraform plan
 terraform destroy -auto-approve -refresh=false
 

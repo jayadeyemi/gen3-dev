@@ -11,16 +11,24 @@ locals {
   eks_cluster_name = var.eks_cluster_random_suffix != "" ? "${var.eks_cluster_name}-${var.eks_cluster_random_suffix}" : "${var.eks_cluster_name}-${random_string.suffix.result}"
   
   ack_services = {
-    for item in var.helm_services :
+    for item in var.ack_services :
     lower(item.name) => {
-      policy_arn           = item.policy_arn
       version              = item.version
       namespace            = "ack-system"
-      service_account_name = "helm-${lower(item.name)}-controller"
+      service_account_name = "ack-${lower(item.name)}-controller"
+      policy_arn           = item.policy_arn
     }
   }
 
-  kro_link_sa_to_namespace =  [ for item in var.kro_service_list : "system:serviceaccount:${var.kro_namespace}:helm-${lower(item)}-controller" ]
+  kro_services = {
+    version              = var.kro_chart_version
+    namespace            = var.kro_namespace
+    service_account_name = "ack-iam-controller-sa"
+    policy_arns           = [
+      "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+      ]
+
+  }
 
   tags = {
     "Environment" = "gen3"
@@ -61,38 +69,76 @@ module "gen3-eks" {
 }
 
 
-module "gen3-ack-helm-iam" {
+module "gen3-ack-iam" {
 
   for_each = local.ack_services
   source   = "./iam"
 
   oidc_provider_url    = module.gen3-eks.eks_oidc_issuer_url
-  role_name            = "ack-helm-controller-${local.eks_cluster_name}-${each.key}"
+  role_name            = "ack-${each.key}-controller-${local.eks_cluster_name}"
   link_sa_to_namespace = [ "system:serviceaccount:${each.value.namespace}:${each.value.service_account_name}" ] 
   policy_arn           = [ each.value.policy_arn ]
 }
 
-module "gen3-ack-kro-iam" {
-  source               = "./iam"
-  oidc_provider_url    = module.gen3-eks.eks_oidc_issuer_url
-  role_name            = "ack-controller-${local.eks_cluster_name}-kro"
-  link_sa_to_namespace = local.kro_link_sa_to_namespace
-
-  policy_arn           = var.kro_policy_arns
-} 
+ 
 
 module "gen3-ack-helm-controllers" {
   for_each      = local.ack_services
   source        = "./helm-controller"
-  # Per-service inputs
-  service_name  = each.key
+  chart_name    = "ack-${each.key}-controller"
+  chart         = "${each.key}-chart"
+  repository    = "oci://public.ecr.aws/aws-controllers-k8s"
   chart_version = each.value.version
   namespace     = each.value.namespace
+  set_values = [ 
+    {    
+      name  = "aws.region"
+      value = var.region
+    },
+    {
+      name  = "serviceAccount.name"
+      value = "ack-${each.key}-controller"
+    },
+    {
+      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = module.gen3-ack-iam[each.key].iam_role_arn
+    }
+  ]
+  depends_on    = [ module.gen3-eks, module.gen3-ack-iam ]
+}
 
-  # Shared / derived inputs
-  region        = var.region
-  irsa_role_arn = module.gen3-ack-helm-iam[each.key].iam_role_arn
-  depends_on    = [ module.gen3-eks, module.gen3-ack-helm-iam ]
+module "gen3-ack-kro-iam" {
+
+  source   = "./iam"
+
+  oidc_provider_url    = module.gen3-eks.eks_oidc_issuer_url
+  role_name            = "ack-kro-controller-${local.eks_cluster_name}"
+  link_sa_to_namespace = [ "system:serviceaccount:${local.kro_services.namespace}:${local.kro_services.service_account_name}" ]
+  policy_arn           = local.kro_services.policy_arns
+}
+
+module "gen3-ack-kro-controller" {
+ source        = "./helm-controller"
+  chart_name    = "kro-controller"
+  chart         = "kro"
+  repository    = "oci://ghcr.io/kro-run/kro"
+  chart_version = local.kro_services.version
+  namespace     = local.kro_services.namespace
+  set_values = [ 
+    {
+      name = "aws.region"
+      value = var.region
+    }, 
+    {
+      name  = "serviceAccount.name"
+      value = local.kro_services.service_account_name
+    }, 
+    {
+      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = module.gen3-ack-kro-iam.iam_role_arn
+    } 
+]
+  depends_on    = [ module.gen3-eks ]
 }
 
 module "gen3-ack-helm-infra" {
@@ -103,18 +149,3 @@ module "gen3-ack-helm-infra" {
   namespace    = each.value.namespace
   depends_on   = [ module.gen3-ack-helm-controllers ]
 }
-
-module "gen3-ack-kro-controllers" {
-  source        = "./kro-controller"
-  region        = var.region
-  chart_version = var.kro_chart_version
-  namespace     = var.kro_namespace
-  irsa_role_arn = module.gen3-ack-kro-iam.iam_role_arn
-  depends_on    = [ module.gen3-eks, module.gen3-ack-kro-iam ]
-}
-
-# module "gen3-ack-kro-graph" {
-#   source                    = "./kro-infra"
-#   resource_graph_definition = var.kro_manifest
-#   depends_on                = [ module.gen3-ack-kro-controllers ]
-# }

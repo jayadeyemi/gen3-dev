@@ -7,18 +7,9 @@ resource "helm_release" "kro_chart" {
   create_namespace = true
   wait             = false 
 
-  set = [
-    {
-      name  = "aws.region"
-      value = var.region
-    },
-    {
-      name  = "serviceAccount.name"
-      value = "kro-controller"
-    },
-    {
-      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-      value = var.irsa_role_arn
-    }
+  values = [
+    templatefile("${path.root}/charts/kro-controller/values.yaml.tpl", {
+      region = var.region
+    })
   ]
 }

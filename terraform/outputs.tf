@@ -17,10 +17,10 @@ output "eks_cluster_name" {
   description = "Kubernetes Cluster Name"
   value       = module.gen3-eks.eks_cluster_name
 }
-output "ack_helm_controller_role_arns" {
+output "ack_role_arns" {
   description = "IAM role ARNs for each ACK controller, keyed by service"
   value       = {
-    for service, role in module.gen3-ack-helm-iam:
+    for service, role in module.gen3-ack-iam:
     service => role.iam_role_arn
   }
 }
@@ -28,4 +28,5 @@ output "ack_helm_controller_role_arns" {
 output "ack_kro_controller_role_arn" {
   description = "IAM role ARN for the ACK KRO controller"
   value       = module.gen3-ack-kro-iam.iam_role_arn
+ 
 } 

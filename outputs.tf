@@ -29,7 +29,7 @@ output "ack_role_arns" {
   value = module.gen3-commons.ack_role_arns
 }
 
-output "ack_kro_controller_role_arn" {
-  description = "IAM role ARN for the ACK KRO controller" 
-    value       = module.gen3-commons.ack_kro_controller_role_arn
-}
+# output "ack_kro_controller_role_arn" {
+#   description = "IAM role ARN for the ACK KRO controller" 
+#     value       = module.gen3-commons.ack_kro_controller_role_arn
+# }

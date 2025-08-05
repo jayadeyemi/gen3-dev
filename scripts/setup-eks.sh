@@ -72,11 +72,14 @@ fi
 #--------------------------------------------------------------------
 # Optional kubeconfig update
 #--------------------------------------------------------------------
+eks_cluster_name="$(terraform output -raw eks_cluster_name)"
+aws_profile="$(terraform output -raw aws_profile)"
+
 if [[ "$UPDATE_KUBECONFIG_ENABLED" -eq 1 ]]; then
   aws eks update-kubeconfig \
-    --name  "$(terraform output -raw eks_cluster_name)" \
+    --name  "${eks_cluster_name}" \
     --alias "${KUBE_ALIAS}" \
-    --profile "$(terraform output -raw aws_profile)"
+    --profile "${aws_profile}"
 
   kubectl config use-context "${KUBE_ALIAS}"
   kubectl get pods --all-namespaces

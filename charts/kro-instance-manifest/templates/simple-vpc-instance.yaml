@@ -1,0 +1,7 @@
+apiVersion: kro.run/v1alpha1
+kind: NetworkingStack
+metadata:
+  name: "demo-kro-vpc-stack"
+  namespace: kro-system              # <--- change (or add) this line
+spec:
+  name: "demo-kro-vpc-stack"

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: eks-manifest
+description: Provision AWS EKS resources via ACK CRDs
+type: application
+version: "0.1.1"

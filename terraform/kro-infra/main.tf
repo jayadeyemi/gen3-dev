@@ -1,5 +1,7 @@
-resource "kubernetes_manifest" "ack_infra" {
-
-  manifest = yamldecode(file("${path.root}/graphs/${var.resource_graph_definition}.yaml"))
-
+resource "helm_release" "kro_infra" {
+  name             = var.chart_name
+  chart            = var.chart_path
+  namespace        =  var.namespace
+  create_namespace = false
+  wait             = true
 }

@@ -11,7 +11,7 @@ terraform {
     helm       = { source = "hashicorp/helm"      , version = "~> 3.0.1" }
     tls        = { source = "hashicorp/tls"       , version = "~> 4.0.5" }
     cloudinit  = { source = "hashicorp/cloudinit" , version = "~> 2.3.4" }
-    kubectl    = { source = "gavinbunney/kubectl" , version = "~> 1.19.0" }
+    kubectl    = { source = "alekc/kubectl" , version = "~> 2.1.3" }
     }
   required_version = "~> 1.3"
 }
@@ -20,7 +20,6 @@ terraform {
 provider "kubernetes" {
   host                   = module.gen3-eks.eks_cluster_endpoint
   cluster_ca_certificate = base64decode(module.gen3-eks.eks_cluster_ca_certificate)
-  token                  = module.gen3-eks.eks_cluster_token
   
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
@@ -34,7 +33,6 @@ provider "helm" {
   kubernetes = {
     host                   = module.gen3-eks.eks_cluster_endpoint
     cluster_ca_certificate = base64decode(module.gen3-eks.eks_cluster_ca_certificate)
-    token                  = module.gen3-eks.eks_cluster_token    
 
     exec     = {
       api_version = "client.authentication.k8s.io/v1beta1"

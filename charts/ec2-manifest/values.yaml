@@ -1,6 +1,6 @@
 vpc:
   enabled: true
-  name: "ack-test-vpc"
+  name: "demo-vpc-ack"
   cidrBlock1: "172.16.0.0/16"
   cidrBlock2: ""
   cidrBlock3: ""
@@ -8,8 +8,8 @@ vpc:
   enableDNSHostnames: true
   enableDNSSupport: true
   tags:
-    - Name: "ack-test-vpc"
-    - environment: test
+    - Name: "demo-vpc-ack"
+    - environment: demo
     - provisioner: terraform-helm-ack
 
     # additional tags

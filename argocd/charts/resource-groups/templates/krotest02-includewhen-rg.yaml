@@ -65,6 +65,25 @@ spec:
             test-name: includewhen
 
     # ================================================================
+    # Layer 0.5: Always-on metadata (TEST — added to validate RGD resource changes)
+    # ================================================================
+    - id: alwaysOnMeta
+      readyWhen:
+        - ${alwaysOnMeta.metadata.?name.orValue('null') != 'null'}
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: ${schema.spec.name}-always-on-meta
+          namespace: ${targetNamespace.metadata.name}
+          labels:
+            test-suite: kro-capabilities
+            test-name: includewhen-always-on
+        data:
+          purpose: "Test resource added without schema change"
+          environment: ${schema.spec.environment}
+
+    # ================================================================
     # Layer 1: Single-condition includeWhen (boolean flag)
     # ================================================================
     - id: featureAConfig

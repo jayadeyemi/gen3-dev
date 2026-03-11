@@ -2,7 +2,7 @@
 # local-infra-instances — KRO infrastructure instances for gen3-dev
 # ======================================================================
 # Mirrors gen3-kro's fleet-infra-instances.yaml pattern.
-# Renders the instances chart using cluster-fleet/local/infrastructure.yaml
+# Renders the instances chart using cluster-fleet/local-aws-dev/infrastructure.yaml
 # to create KRO Custom Resources (the test graph instance).
 #
 # In gen3-kro, this uses fleet_member: fleet-spoke-infra to match per-spoke

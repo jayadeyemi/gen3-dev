@@ -83,13 +83,47 @@ namespace: ${namespace.metadata.name}
 
 ## Versioned Naming Convention
 
-All RGDs use versioned naming: `AwsGen3<Component><Version>Flat`
+RGDs use versioned naming: monolithic = `AwsGen3<Component><Version>Flat`,
+modular = `AwsGen3<Component><Version>` (no Flat suffix).
 
-- metadata.name: lowercase, no hyphens (e.g., `awsgen3test1flat`)
-- Kind: CamelCase (e.g., `AwsGen3Test1Flat`)
-- Filename: `<lowercase>-rg.yaml` (e.g., `awsgen3test1flat-rg.yaml`)
+- metadata.name: lowercase, no hyphens (e.g., `awsgen3foundation1`)
+- Kind: CamelCase (e.g., `AwsGen3Foundation1`)
+- Filename: `<lowercase>-rg.yaml` (e.g., `awsgen3foundation1-rg.yaml`)
 
 The version number enables creating v2, v3 graphs alongside existing ones.
+
+## Cross-Tier Bridge Pattern
+
+Modular RGDs communicate via bridge ConfigMaps (not Secrets):
+
+```yaml
+# Producer: conditional bridge ConfigMap
+- id: foundationBridge
+  includeWhen:
+    - ${schema.spec.createBridgeSecret == true}
+  template:
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${schema.spec.name}-foundation-bridge
+    data:
+      vpc-id: ${vpc.status.?vpcID}
+```
+
+```yaml
+# Consumer: reads bridge via externalRef (cross-namespace)
+- id: foundationBridge
+  externalRef:
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${schema.spec.foundationBridgeName}
+      namespace: ${schema.spec.foundationNamespace}
+```
+
+Bridge key naming: kebab-case (`vpc-id`, `nat-gateway-id`, `platform-key-arn`).
+Access in templates: `${foundationBridge.data['vpc-id']}` (bracket notation for
+hyphenated keys).
 
 ## gen3-kro Parity
 

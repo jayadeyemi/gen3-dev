@@ -26,14 +26,14 @@ Add it to `argocd/charts/resource-groups/templates/` (any `.yaml` file).
 ArgoCD Application `kro-local-rgs` (sync-wave 10) picks it up on the next push.
 
 ### 2. Add a test instance
-Add the instance block to `argocd/cluster-fleet/local/infrastructure.yaml`
+Add the instance block to `argocd/cluster-fleet/local-aws-dev/infrastructure.yaml`
 under the `instances:` key. ArgoCD Application `kro-local-instances` renders
 it via the `argocd/charts/instances/` Helm chart and deploys it.
 
 ### 3. Push and observe
 ```bash
 git add argocd/charts/resource-groups/templates/<new-rg>.yaml
-git add argocd/cluster-fleet/local/infrastructure.yaml
+git add argocd/cluster-fleet/local-aws-dev/infrastructure.yaml
 git commit -m "test: add KRO capability test N"
 git push
 

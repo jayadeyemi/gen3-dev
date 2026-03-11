@@ -288,3 +288,137 @@ instances:
       project: gen3-dev
       producerBridgeName: crossrgd-prod-crossrgd-bridge
       producerNamespace: kro-test-crossrgd
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Modular RGD Instances — Plan 02 7-Tier Architecture
+  #
+  # Tier 0 (Foundation) deploys standalone networking, KMS, and S3.
+  # Tier 1 (Database) depends on Foundation bridge (syncWave 20 > 15).
+  # Tier 3 (Compute) depends on Foundation bridge — NOT instantiated
+  # here due to cost (~$350/mo). RGD is registered as a CRD only.
+  #
+  # NOTE: Foundation creates a bridge ConfigMap at sync-wave 15 that
+  # downstream tiers read via externalRef. Database uses sync-wave 20,
+  # matching the producer→consumer ordering proven in Tests 3/4 and 7a/7b.
+  #
+  # COST: Foundation ~$37/mo (NAT Gateway + minor).
+  #        Database ~$45-350/mo (Aurora Serverless v2 min 0.5 ACU).
+  #        These stack with existing gen3-dev-test instance costs.
+  # ──────────────────────────────────────────────────────────────────────
+
+  # ── Tier 0: Foundation ────────────────────────────────────────────────
+  # Standalone: VPC + gateways + route tables + subnets + KMS + S3.
+  # Creates bridge ConfigMap for downstream tiers.
+  # Uses 10.1.0.0/16 CIDR (separate from gen3-dev-test's 10.0.0.0/16).
+
+  gen3-foundation:
+    kind: AwsGen3Foundation1
+    namespace: gen3-foundation
+    syncWave: "15"
+    environment: local
+    spec:
+      name: gen3-dev
+      namespace: gen3-foundation
+      region: us-east-1
+      environment: local
+      project: gen3-dev
+      adoptionPolicy: adopt-or-create
+      deletionPolicy: delete
+
+      # Network
+      vpcCIDR: "10.1.0.0/16"
+      publicSubnetCIDRs:
+        - "10.1.240.0/24"
+        - "10.1.241.0/24"
+      privateSubnetCIDRs:
+        - "10.1.0.0/20"
+        - "10.1.16.0/20"
+      availabilityZones:
+        - "us-east-1a"
+        - "us-east-1b"
+
+      # Storage (names must be globally unique in S3)
+      loggingBucketName: gen3-dev-foundation-logging
+      dataBucketName: gen3-dev-foundation-data
+      uploadBucketName: gen3-dev-foundation-upload
+
+      # KMS
+      kmsKeyDescription: gen3-dev foundation encryption key
+
+      # Bridge (creates ConfigMap for Database/Compute tiers)
+      createBridgeSecret: true
+
+  # ── Tier 1: Database ──────────────────────────────────────────────────
+  # PREREQUISITE: Before deploying, create the master password Secret:
+  #   kubectl create secret generic aurora-master-password \
+  #     -n gen3-database --from-literal=password='<your-secure-password>'
+  #
+  # Reads Foundation bridge ConfigMap via cross-namespace externalRef.
+  # Aurora PostgreSQL Serverless v2 with 0.5-4 ACU scaling.
+
+  # gen3-database:
+  #   kind: AwsGen3Database1
+  #   namespace: gen3-database
+  #   syncWave: "20"
+  #   environment: local
+  #   spec:
+  #     name: gen3-dev
+  #     namespace: gen3-database
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #
+  #     # Foundation bridge reference (cross-namespace)
+  #     foundationBridgeName: gen3-dev-foundation-bridge
+  #     foundationNamespace: gen3-foundation
+  #
+  #     # Database subnets (within Foundation VPC 10.1.0.0/16)
+  #     dbSubnetCIDRs:
+  #       - "10.1.32.0/24"
+  #       - "10.1.33.0/24"
+  #     availabilityZones:
+  #       - "us-east-1a"
+  #       - "us-east-1b"
+  #
+  #     # Aurora configuration
+  #     auroraEngineVersion: "16.6"
+  #     auroraDBName: gen3
+  #     auroraMasterUsername: postgres
+  #     masterPasswordSecretName: aurora-master-password
+  #     masterPasswordSecretKey: password
+  #     auroraMinCapacity: "0.5"
+  #     auroraMaxCapacity: "4"
+  #
+  #     # Bridge (creates ConfigMap for Application IAM tier)
+  #     createBridgeSecret: true
+
+  # ── Tier 3: Compute (NOT instantiated — $350/mo) ─────────────────────
+  # RGD awsgen3compute1 is registered as a CRD but not deployed here.
+  # Uncomment to deploy EKS cluster + managed node group:
+  #
+  # gen3-compute:
+  #   kind: AwsGen3Compute1
+  #   namespace: gen3-compute
+  #   syncWave: "25"
+  #   environment: local
+  #   spec:
+  #     name: gen3-dev
+  #     namespace: gen3-compute
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     foundationBridgeName: gen3-dev-foundation-bridge
+  #     foundationNamespace: gen3-foundation
+  #     kubernetesVersion: "1.30"
+  #     nodeInstanceTypes:
+  #       - "t3.medium"
+  #     nodeDesiredSize: 2
+  #     nodeMinSize: 1
+  #     nodeMaxSize: 4
+  #     nodeDiskSize: 20
+  #     nodeAMIType: AL2023_x86_64_STANDARD
+  #     createBridgeSecret: true

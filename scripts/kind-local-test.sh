@@ -435,7 +435,7 @@ YAML
   fi
 
   log_info "AWS Account ID: ${aws_account_id}"
-  kubectl annotate secret local \
+  kubectl annotate secret local-aws-dev \
     -n "${ARGOCD_NAMESPACE}" \
     --context "${KIND_CONTEXT}" \
     "aws_account_id=${aws_account_id}" \
@@ -502,7 +502,7 @@ stage_install() {
 apiVersion: v1
 kind: Secret
 metadata:
-  name: local
+  name: local-aws-dev
   namespace: ${ARGOCD_NAMESPACE}
   labels:
     argocd.argoproj.io/secret-type: cluster
@@ -516,7 +516,7 @@ metadata:
     aws_account_id: "${aws_account_id}"
 type: Opaque
 stringData:
-  name: local
+  name: local-aws-dev
   server: https://kubernetes.default.svc
   config: |
     {

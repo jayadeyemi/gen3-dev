@@ -61,7 +61,7 @@ gen3-dev/
 │   │   └── resource-groups/
 │       └── templates/     # RGD YAML files (4 production + 7 capability test RGDs)
 │   └── cluster-fleet/
-│       └── local/       # Per-cluster overrides + instance values (infrastructure.yaml)
+│       └── local-aws-dev/  # Per-cluster overrides + instance values (infrastructure.yaml)
 ├── config/              # Generated local.env (gitignored)
 ├── outputs/
 │   └── plans/           # Architecture plans & RGD design docs
@@ -159,7 +159,10 @@ The `.gitignore` covers: `*.ppk`, `*.pem`, `**/secrets/*`, `**/secrets.yaml`,
 
 ## ResourceGraphDefinitions (RGDs)
 
-All RGDs use versioned naming: `AwsGen3<Component><Version>Flat`.
+RGDs use versioned naming: monolithic graphs use `AwsGen3<Component><Version>Flat`,
+modular tier graphs use `AwsGen3<Component><Version>` (no Flat suffix).
+
+### Monolithic RGDs (legacy/reference)
 
 | RGD | Kind | Resources | Purpose |
 |-----|------|-----------|---------|
@@ -168,14 +171,27 @@ All RGDs use versioned naming: `AwsGen3<Component><Version>Flat`.
 | awsgen3network1flat | AwsGen3Network1Flat | 9 | Network expansion: NAT + EIP + DB subnets + SGs |
 | awsgen3test1flat | AwsGen3Test1Flat | 24 | Low-cost test graph (~$37/month, no EKS/Aurora) |
 
-Only the **test graph** (AwsGen3Test1Flat) is instantiated. The other RGDs are
-registered as CRDs but not deployed as instances.
+### Modular RGDs (Plan 02 — 7-tier architecture)
+
+| Tier | RGD | Kind | Resources | Depends On | Cost |
+|------|-----|------|-----------|------------|------|
+| 0 | awsgen3foundation1 | AwsGen3Foundation1 | 16 + bridge | — (standalone) | ~$37/mo |
+| 1 | awsgen3database1 | AwsGen3Database1 | 9 + bridge | Foundation bridge | ~$45-350/mo |
+| 3 | awsgen3compute1 | AwsGen3Compute1 | 6 + bridge | Foundation bridge | ~$350/mo |
+
+Cross-tier dependencies flow via **bridge ConfigMaps** (not Secrets) created
+with `includeWhen: createBridgeSecret == true`. Consumer tiers read the bridge
+via `externalRef` (cross-namespace, validated by KRO capability Test 7b).
+
+Only the **test graph** (AwsGen3Test1Flat) and **Foundation** (AwsGen3Foundation1)
+are instantiated. Database and Compute RGDs are registered as CRDs but not
+deployed (Database requires a password Secret; Compute is high-cost).
 
 ## KRO Capability Tests
 
 All KRO feature-validation tests live in `argocd/charts/resource-groups/templates/`
 and are ArgoCD-managed — no manual `kubectl apply`. Instances are declared in
-`argocd/cluster-fleet/local/infrastructure.yaml`.
+`argocd/cluster-fleet/local-aws-dev/infrastructure.yaml`.
 
 | # | Kind | RGD file | Instance key(s) | Resources | AWS? |
 |---|------|----------|-----------------|-----------|------|

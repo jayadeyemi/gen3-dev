@@ -1,0 +1,302 @@
+########################################
+# gen3-dev Local CSOC Addons
+#
+# Consumed by the bootstrap ApplicationSet (local-addons.yaml)
+# via the application-sets chart.
+#
+# ACK controllers use K8s Secret credentials (not IRSA) since Kind
+# has no OIDC provider. Credential injection is done via
+# `kind-local-test.sh inject-creds`, and ignoreDifferences
+# prevents ArgoCD from reverting the injected env vars.
+########################################
+
+syncPolicy:
+  automated:
+    selfHeal: true
+    allowEmpty: true
+    prune: true
+  retry:
+    limit: -1
+    backoff:
+      duration: 5s
+      factor: 2
+      maxDuration: 10m
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+syncPolicyAppSet:
+  preserveResourcesOnDeletion: false
+useSelectors: true
+repoURLGit: '{{.metadata.annotations.addons_repo_url}}'
+repoURLGitRevision: '{{.metadata.annotations.addons_repo_revision}}'
+repoURLGitBasePath: '{{.metadata.annotations.addons_repo_basepath}}'
+valueFiles:
+  - addons/local/addons
+  - cluster-fleet/{{.name}}/addons
+
+########################################
+# KRO Controller (wave -30)
+########################################
+
+self-managed-kro:
+  enabled: true
+  namespace: kro-system
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "-30"
+  chartName: kro
+  chartRepository: 'oci://registry.k8s.io/kro/charts/kro'
+  defaultVersion: "0.8.5"
+  selector:
+    matchExpressions:
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+  valuesObject:
+    serviceAccount:
+      create: true
+    config:
+      dynamicControllerConcurrentReconciles: 5
+
+########################################
+# ResourceGraphDefinitions (wave 10)
+########################################
+
+kro-local-rgs:
+  enabled: true
+  type: manifest
+  namespace: kro
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "10"
+  path: 'argocd/charts/resource-groups'
+  chartRepository: '{{.metadata.annotations.addons_repo_url}}'
+  targetRevision: '{{.metadata.annotations.addons_repo_revision}}'
+  selector:
+    matchExpressions:
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+
+########################################
+# Self-Managed ACK Controllers (wave 1)
+#
+# Kind cluster uses K8s Secret for AWS credentials (no IRSA).
+# ignoreDifferences prevents ArgoCD from reverting env vars
+# injected by `kind-local-test.sh inject-creds`.
+########################################
+
+ack-ec2:
+  enabled: true
+  namespace: ack
+  chartName: ec2-chart
+  chartRepository: "oci://public.ecr.aws/aws-controllers-k8s/ec2-chart"
+  defaultVersion: "1.9.2"
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "1"
+  selector:
+    matchExpressions:
+      - key: ack_management_mode
+        operator: In
+        values: ['self_managed']
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+  valuesObject:
+    serviceAccount:
+      create: true
+      name: "ack-ec2-controller"
+    aws:
+      region: '{{.metadata.annotations.aws_region}}'
+    enableCARM: false
+    featureGates:
+      IAMRoleSelector: "true"
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/env
+
+ack-eks:
+  enabled: true
+  namespace: ack
+  chartName: eks-chart
+  chartRepository: "oci://public.ecr.aws/aws-controllers-k8s/eks-chart"
+  defaultVersion: "1.11.1"
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "1"
+  selector:
+    matchExpressions:
+      - key: ack_management_mode
+        operator: In
+        values: ['self_managed']
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+  valuesObject:
+    serviceAccount:
+      create: true
+      name: "ack-eks-controller"
+    aws:
+      region: '{{.metadata.annotations.aws_region}}'
+    enableCARM: false
+    featureGates:
+      IAMRoleSelector: "true"
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/env
+
+ack-iam:
+  enabled: true
+  namespace: ack
+  chartName: iam-chart
+  chartRepository: "oci://public.ecr.aws/aws-controllers-k8s/iam-chart"
+  defaultVersion: "1.6.1"
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "1"
+  selector:
+    matchExpressions:
+      - key: ack_management_mode
+        operator: In
+        values: ['self_managed']
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+  valuesObject:
+    serviceAccount:
+      create: true
+      name: "ack-iam-controller"
+    aws:
+      region: '{{.metadata.annotations.aws_region}}'
+    enableCARM: false
+    featureGates:
+      IAMRoleSelector: "true"
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/env
+
+ack-kms:
+  enabled: true
+  namespace: ack
+  chartName: kms-chart
+  chartRepository: "oci://public.ecr.aws/aws-controllers-k8s/kms-chart"
+  defaultVersion: "1.2.1"
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "1"
+  selector:
+    matchExpressions:
+      - key: ack_management_mode
+        operator: In
+        values: ['self_managed']
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+  valuesObject:
+    serviceAccount:
+      create: true
+      name: "ack-kms-controller"
+    aws:
+      region: '{{.metadata.annotations.aws_region}}'
+    enableCARM: false
+    featureGates:
+      IAMRoleSelector: "true"
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/env
+
+ack-rds:
+  enabled: true
+  namespace: ack
+  chartName: rds-chart
+  chartRepository: "oci://public.ecr.aws/aws-controllers-k8s/rds-chart"
+  defaultVersion: "1.7.6"
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "1"
+  selector:
+    matchExpressions:
+      - key: ack_management_mode
+        operator: In
+        values: ['self_managed']
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+  valuesObject:
+    serviceAccount:
+      create: true
+      name: "ack-rds-controller"
+    aws:
+      region: '{{.metadata.annotations.aws_region}}'
+    enableCARM: false
+    featureGates:
+      IAMRoleSelector: "true"
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/env
+
+ack-s3:
+  enabled: true
+  namespace: ack
+  chartName: s3-chart
+  chartRepository: "oci://public.ecr.aws/aws-controllers-k8s/s3-chart"
+  defaultVersion: "1.3.1"
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "1"
+  selector:
+    matchExpressions:
+      - key: ack_management_mode
+        operator: In
+        values: ['self_managed']
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+  valuesObject:
+    serviceAccount:
+      create: true
+      name: "ack-s3-controller"
+    aws:
+      region: '{{.metadata.annotations.aws_region}}'
+    enableCARM: false
+    featureGates:
+      IAMRoleSelector: "true"
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/env
+
+ack-secretsmanager:
+  enabled: true
+  namespace: ack
+  chartName: secretsmanager-chart
+  chartRepository: "oci://public.ecr.aws/aws-controllers-k8s/secretsmanager-chart"
+  defaultVersion: "1.2.1"
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "1"
+  selector:
+    matchExpressions:
+      - key: ack_management_mode
+        operator: In
+        values: ['self_managed']
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+  valuesObject:
+    serviceAccount:
+      create: true
+      name: "ack-secretsmanager-controller"
+    aws:
+      region: '{{.metadata.annotations.aws_region}}'
+    enableCARM: false
+    featureGates:
+      IAMRoleSelector: "true"
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/env

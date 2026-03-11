@@ -1,0 +1,45 @@
+# Local infrastructure instance — test graph only.
+# Consumed by local-infra-instances.yaml bootstrap ApplicationSet
+# via the instances chart.
+#
+# Only the test graph is instantiated. The full infra1flat, baseflat,
+# and networkflat RGDs are registered as CRDs but not instantiated.
+instances:
+  gen3-dev-test:
+    kind: AwsGen3Test1Flat
+    namespace: gen3-dev-test
+    syncWave: "1"
+    environment: local
+    spec:
+      # ── Basic metadata ──────────────────────────────────────────────
+      name: gen3-dev-test
+      namespace: gen3-dev-test
+      region: us-east-1
+      environment: local
+      project: gen3-dev
+      adoptionPolicy: adopt-or-create
+      deletionPolicy: delete
+
+      # ── Network Configuration ───────────────────────────────────────
+      vpcCIDR: "10.0.0.0/16"
+      publicSubnetCIDRs:
+        - "10.0.240.0/24"
+        - "10.0.241.0/24"
+      privateSubnetCIDRs:
+        - "10.0.0.0/20"
+        - "10.0.16.0/20"
+      dbSubnetCIDRs:
+        - "10.0.32.0/24"
+        - "10.0.33.0/24"
+      availabilityZones:
+        - "us-east-1a"
+        - "us-east-1b"
+
+      # ── S3 Buckets ─────────────────────────────────────────────────
+      loggingBucketName: gen3-dev-test-logging
+      dataBucketName: gen3-dev-test-data
+      uploadBucketName: gen3-dev-test-upload
+
+      # ── KMS ─────────────────────────────────────────────────────────
+      kmsKeyDescription: gen3-dev-test encryption key
+      kmsKeyAlias: gen3-dev-test-key

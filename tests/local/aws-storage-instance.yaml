@@ -1,0 +1,42 @@
+# AWS Storage Test Instance
+#
+# Applies the AwsGen3StorageTest CRD (registered by aws-storage-rg.yaml).
+# ACK controllers must have valid AWS credentials before applying.
+# Run `kind-local-test.sh inject-creds` to refresh credentials.
+#
+# IMPORTANT: S3 bucket names must be globally unique across all AWS accounts.
+# Replace the bucket name prefix with something unique (e.g., your project-account).
+#
+# Usage:
+#   kubectl apply -f tests/local/aws-storage-instance.yaml
+#   kubectl get awsgen3storagetests -w
+#   kubectl delete -f tests/local/aws-storage-instance.yaml
+
+apiVersion: v1alpha1
+kind: AwsGen3StorageTest
+metadata:
+  name: storage-1
+  namespace: default
+spec:
+  name: gen3-local
+  namespace: gen3-dev-test
+  region: us-east-1
+  environment: local
+  project: gen3-dev
+
+  # S3 bucket names — MUST be globally unique across all AWS accounts
+  # Customize these with a unique prefix for your account
+  loggingBucketName: gen3-dev-local-logging
+  dataBucketName: gen3-dev-local-data
+  uploadBucketName: gen3-dev-local-upload
+
+  # KMS
+  kmsKeyDescription: "Gen3 local CSOC encryption key"
+
+  # IAM roles
+  clusterRoleEnabled: true
+  nodeRoleEnabled: true
+
+  # ACK behaviour
+  adoptionPolicy: adopt-or-create
+  deletionPolicy: delete

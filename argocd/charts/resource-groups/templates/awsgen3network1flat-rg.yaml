@@ -1,0 +1,332 @@
+# AwsGen3Network1Flat — Network Expansion Graph (v1)
+#
+# Adds security and advanced networking on top of AwsGen3Base1Flat.
+# Takes VPC ID and public subnet ID as inputs to integrate with
+# existing base infrastructure.
+#
+# Resources (~9):
+#   Layer 1: EIP, EKS security group, Aurora security group
+#   Layer 2: NAT gateway (needs EIP + public subnet)
+#   Layer 3: DB route table (with NAT route)
+#   Layer 4: DB subnets (×2)
+#   Layer 5: DB subnet group
+#
+# Prerequisite: An AwsGen3Base1Flat instance must exist and provide
+# vpcID, publicSubnetID, and eksSecurityGroupID.
+
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: awsgen3network1flat
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: AwsGen3Network1Flat
+    spec:
+      # Basic metadata
+      name: string | required=true
+      namespace: string | default="default"
+      region: string | default="us-east-1"
+      environment: string | default="dev"
+      project: string | default="kro-managed"
+      adoptionPolicy: string | default="adopt-or-create"
+      deletionPolicy: string | default="delete"
+
+      # Integration with base graph outputs
+      vpcID: string | required=true
+      vpcCIDR: string | required=true
+      publicSubnetID: string | required=true
+      eksSecurityGroupID: string
+
+      # DB Subnet CIDRs
+      dbSubnetCIDRs: "[]string | required=true"
+      availabilityZones: "[]string | required=true"
+
+    status:
+      # NAT
+      natGatewayID: ${natGateway1.status.?natGatewayID.orValue("loading")}
+      elasticIPAllocationID: ${eip1.status.?allocationID.orValue("loading")}
+
+      # DB Networking
+      dbRouteTableID: ${dbRouteTable.status.?routeTableID.orValue("loading")}
+      dbSubnetIDs:
+        - ${dbsubnet1.status.?subnetID.orValue("loading")}
+        - ${dbsubnet2.status.?subnetID.orValue("loading")}
+      dbSubnetGroupARN: ${dbSubnetGroup.status.?ackResourceMetadata.?arn.orValue("loading")}
+
+      # Security Groups
+      eksSecurityGroupID: ${eksSecurityGroup.status.?id.orValue("loading")}
+      auroraSecurityGroupID: ${auroraSecurityGroup.status.?id.orValue("loading")}
+
+  resources:
+  # ====================================================================
+  # Layer 1: EIP + Security Groups (no cross-dependencies)
+  # ====================================================================
+    # Elastic IP for NAT Gateway
+    - id: eip1
+      readyWhen:
+        - ${eip1.status.?allocationID.orValue('null') != 'null'}
+        - ${eip1.status.?conditions.orValue([]).exists(c, c.type == "ACK.ResourceSynced" && c.status == "True")}
+      template:
+        apiVersion: ec2.services.k8s.aws/v1alpha1
+        kind: ElasticIPAddress
+        metadata:
+          name: ${schema.spec.name}-eip-1
+          namespace: ${schema.spec.namespace}
+          annotations:
+            services.k8s.aws/region: ${schema.spec.region}
+            services.k8s.aws/adoption-policy: ${schema.spec.adoptionPolicy}
+            services.k8s.aws/deletion-policy: ${schema.spec.deletionPolicy}
+        spec:
+          tags:
+            - key: Name
+              value: ${schema.spec.name}-eip-1
+            - key: Environment
+              value: ${schema.spec.environment}
+            - key: ManagedBy
+              value: Kro
+            - key: Project
+              value: ${schema.spec.project}
+    # EKS Security Group
+    - id: eksSecurityGroup
+      readyWhen:
+        - ${eksSecurityGroup.status.?id.orValue('null') != 'null'}
+        - ${eksSecurityGroup.status.?conditions.orValue([]).exists(c, c.type == "ACK.ResourceSynced" && c.status == "True")}
+      template:
+        apiVersion: ec2.services.k8s.aws/v1alpha1
+        kind: SecurityGroup
+        metadata:
+          name: ${schema.spec.name}-eks-sg
+          namespace: ${schema.spec.namespace}
+          annotations:
+            services.k8s.aws/region: ${schema.spec.region}
+            services.k8s.aws/adoption-policy: ${schema.spec.adoptionPolicy}
+            services.k8s.aws/deletion-policy: ${schema.spec.deletionPolicy}
+        spec:
+          name: ${schema.spec.name}-eks-sg
+          description: Security group for EKS cluster and worker nodes
+          vpcID: ${schema.spec.vpcID}
+          ingressRules:
+            - ipProtocol: tcp
+              fromPort: 443
+              toPort: 443
+              ipRanges:
+                - cidrIP: ${schema.spec.vpcCIDR}
+                  description: Allow control plane communication
+            - ipProtocol: tcp
+              fromPort: 10250
+              toPort: 10250
+              ipRanges:
+                - cidrIP: ${schema.spec.vpcCIDR}
+                  description: Allow kubelet API
+          tags:
+            - key: Name
+              value: ${schema.spec.name}-eks-sg
+            - key: Environment
+              value: ${schema.spec.environment}
+            - key: ManagedBy
+              value: Kro
+            - key: Project
+              value: ${schema.spec.project}
+    # Aurora Security Group
+    - id: auroraSecurityGroup
+      readyWhen:
+        - ${auroraSecurityGroup.status.?id.orValue('null') != 'null'}
+        - ${auroraSecurityGroup.status.?conditions.orValue([]).exists(c, c.type == "ACK.ResourceSynced" && c.status == "True")}
+      template:
+        apiVersion: ec2.services.k8s.aws/v1alpha1
+        kind: SecurityGroup
+        metadata:
+          name: ${schema.spec.name}-aurora-sg
+          namespace: ${schema.spec.namespace}
+          annotations:
+            services.k8s.aws/region: ${schema.spec.region}
+            services.k8s.aws/adoption-policy: ${schema.spec.adoptionPolicy}
+            services.k8s.aws/deletion-policy: ${schema.spec.deletionPolicy}
+        spec:
+          name: ${schema.spec.name}-aurora-sg
+          description: Security group for Aurora PostgreSQL
+          vpcID: ${schema.spec.vpcID}
+          ingressRules:
+            - ipProtocol: tcp
+              fromPort: 5432
+              toPort: 5432
+              userIDGroupPairs:
+                - groupID: ${eksSecurityGroup.status.?id}
+                  description: Allow EKS nodes access to Aurora PostgreSQL
+          tags:
+            - key: Name
+              value: ${schema.spec.name}-aurora-sg
+            - key: Environment
+              value: ${schema.spec.environment}
+            - key: ManagedBy
+              value: Kro
+            - key: Project
+              value: ${schema.spec.project}
+  # ====================================================================
+  # Layer 2: NAT Gateway
+  # ====================================================================
+    - id: natGateway1
+      readyWhen:
+        - ${natGateway1.status.?natGatewayID.orValue('null') != 'null'}
+        - ${natGateway1.status.?state.orValue('null') == 'available'}
+        - ${natGateway1.status.?conditions.orValue([]).exists(c, c.type == "ACK.ResourceSynced" && c.status == "True")}
+      template:
+        apiVersion: ec2.services.k8s.aws/v1alpha1
+        kind: NATGateway
+        metadata:
+          name: ${schema.spec.name}-nat-gw-1
+          namespace: ${schema.spec.namespace}
+          annotations:
+            services.k8s.aws/region: ${schema.spec.region}
+            services.k8s.aws/adoption-policy: ${schema.spec.adoptionPolicy}
+            services.k8s.aws/deletion-policy: ${schema.spec.deletionPolicy}
+        spec:
+          allocationID: ${eip1.status.?allocationID}
+          subnetID: ${schema.spec.publicSubnetID}
+          tags:
+            - key: Name
+              value: ${schema.spec.name}-nat-gw-1
+            - key: Environment
+              value: ${schema.spec.environment}
+            - key: ManagedBy
+              value: Kro
+            - key: Project
+              value: ${schema.spec.project}
+  # ====================================================================
+  # Layer 3: DB Route Table (with NAT egress)
+  # ====================================================================
+    - id: dbRouteTable
+      readyWhen:
+        - ${dbRouteTable.status.?routeTableID.orValue('null') != 'null'}
+        - ${dbRouteTable.status.?conditions.orValue([]).exists(c, c.type == "ACK.ResourceSynced" && c.status == "True")}
+      template:
+        apiVersion: ec2.services.k8s.aws/v1alpha1
+        kind: RouteTable
+        metadata:
+          name: ${schema.spec.name}-db-rt
+          namespace: ${schema.spec.namespace}
+          annotations:
+            services.k8s.aws/region: ${schema.spec.region}
+            services.k8s.aws/adoption-policy: ${schema.spec.adoptionPolicy}
+            services.k8s.aws/deletion-policy: ${schema.spec.deletionPolicy}
+        spec:
+          vpcID: ${schema.spec.vpcID}
+          routes:
+            - destinationCIDRBlock: "0.0.0.0/0"
+              natGatewayID: ${natGateway1.status.?natGatewayID}
+          tags:
+            - key: Name
+              value: ${schema.spec.name}-db-rt
+            - key: Environment
+              value: ${schema.spec.environment}
+            - key: ManagedBy
+              value: Kro
+            - key: Project
+              value: ${schema.spec.project}
+  # ====================================================================
+  # Layer 4: DB Subnets
+  # ====================================================================
+    - id: dbsubnet1
+      readyWhen:
+        - ${dbsubnet1.status.?subnetID.orValue('null') != 'null'}
+        - ${dbsubnet1.status.?state.orValue('null') == 'available'}
+        - ${dbsubnet1.status.?conditions.orValue([]).exists(c, c.type == "ACK.ResourceSynced" && c.status == "True")}
+      template:
+        apiVersion: ec2.services.k8s.aws/v1alpha1
+        kind: Subnet
+        metadata:
+          name: ${schema.spec.name}-db-subnet-1
+          namespace: ${schema.spec.namespace}
+          annotations:
+            services.k8s.aws/region: ${schema.spec.region}
+            services.k8s.aws/adoption-policy: ${schema.spec.adoptionPolicy}
+            services.k8s.aws/deletion-policy: ${schema.spec.deletionPolicy}
+        spec:
+          vpcID: ${schema.spec.vpcID}
+          cidrBlock: ${schema.spec.dbSubnetCIDRs[0]}
+          availabilityZone: ${schema.spec.availabilityZones[0]}
+          mapPublicIPOnLaunch: false
+          routeTableRefs:
+            - from:
+                name: ${dbRouteTable.metadata.name}
+          tags:
+            - key: Name
+              value: ${schema.spec.name}-db-subnet-1
+            - key: Environment
+              value: ${schema.spec.environment}
+            - key: ManagedBy
+              value: Kro
+            - key: Project
+              value: ${schema.spec.project}
+            - key: Type
+              value: Database
+    - id: dbsubnet2
+      readyWhen:
+        - ${dbsubnet2.status.?subnetID.orValue('null') != 'null'}
+        - ${dbsubnet2.status.?state.orValue('null') == 'available'}
+        - ${dbsubnet2.status.?conditions.orValue([]).exists(c, c.type == "ACK.ResourceSynced" && c.status == "True")}
+      template:
+        apiVersion: ec2.services.k8s.aws/v1alpha1
+        kind: Subnet
+        metadata:
+          name: ${schema.spec.name}-db-subnet-2
+          namespace: ${schema.spec.namespace}
+          annotations:
+            services.k8s.aws/region: ${schema.spec.region}
+            services.k8s.aws/adoption-policy: ${schema.spec.adoptionPolicy}
+            services.k8s.aws/deletion-policy: ${schema.spec.deletionPolicy}
+        spec:
+          vpcID: ${schema.spec.vpcID}
+          cidrBlock: ${schema.spec.dbSubnetCIDRs[1]}
+          availabilityZone: ${schema.spec.availabilityZones[1]}
+          mapPublicIPOnLaunch: false
+          routeTableRefs:
+            - from:
+                name: ${dbRouteTable.metadata.name}
+          tags:
+            - key: Name
+              value: ${schema.spec.name}-db-subnet-2
+            - key: Environment
+              value: ${schema.spec.environment}
+            - key: ManagedBy
+              value: Kro
+            - key: Project
+              value: ${schema.spec.project}
+            - key: Type
+              value: Database
+  # ====================================================================
+  # Layer 5: DB Subnet Group
+  # ====================================================================
+    - id: dbSubnetGroup
+      readyWhen:
+        - ${dbSubnetGroup.status.?ackResourceMetadata.?arn.orValue('null') != 'null'}
+        - ${dbSubnetGroup.status.?conditions.orValue([]).exists(c, c.type == "ACK.ResourceSynced" && c.status == "True")}
+      template:
+        apiVersion: rds.services.k8s.aws/v1alpha1
+        kind: DBSubnetGroup
+        metadata:
+          name: ${schema.spec.name}-subnet-group
+          namespace: ${schema.spec.namespace}
+          annotations:
+            services.k8s.aws/region: ${schema.spec.region}
+            services.k8s.aws/adoption-policy: ${schema.spec.adoptionPolicy}
+            services.k8s.aws/deletion-policy: ${schema.spec.deletionPolicy}
+        spec:
+          name: ${schema.spec.name}-subnet-group
+          description: Subnet group for ${schema.spec.name} Aurora cluster
+          subnetIDs:
+            - ${dbsubnet1.status.?subnetID}
+            - ${dbsubnet2.status.?subnetID}
+          tags:
+            - key: Name
+              value: ${schema.spec.name}-subnet-group
+            - key: Environment
+              value: ${schema.spec.environment}
+            - key: ManagedBy
+              value: Kro
+            - key: Project
+              value: ${schema.spec.project}

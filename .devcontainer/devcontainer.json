@@ -1,0 +1,96 @@
+{
+  "name": "gen3-dev",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+
+  // Use the standard devcontainers workspace path
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+  // ── Credential mounts (mirrors gen3-kro) ──────────────────────────────
+  // Mount ~/.aws/eks-devcontainer → /home/vscode/.aws (same as gen3-kro).
+  //   mfa-session.sh on HOST writes temp creds to ~/.aws/eks-devcontainer/credentials[csoc].
+  //   AWS SDK reads /home/vscode/.aws/credentials with AWS_PROFILE=csoc.
+  //
+  // Mount ~/.gen3-dev → /home/vscode/.gen3-dev for dedicated kubeconfig.
+  //   NOT mounting ~/.kube (security: avoids exposing all cluster configs).
+  //   Kind kubeconfig is exported to ~/.gen3-dev/kubeconfig on the HOST.
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.aws/eks-devcontainer,target=/home/vscode/.aws,type=bind,consistency=cached",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gen3-dev,target=/home/vscode/.gen3-dev,type=bind,consistency=cached"
+  ],
+
+  "remoteUser": "vscode",
+
+  // AWS_PROFILE selects the profile from the mounted ~/.aws/credentials file.
+  // Run `bash scripts/mfa-session.sh <MFA_CODE>` on the HOST BEFORE starting the container.
+  //
+  // KUBECONFIG points at the dedicated Kind kubeconfig (not shared ~/.kube).
+  // Run `kind export kubeconfig --name gen3-local --kubeconfig ~/.gen3-dev/kubeconfig` on HOST.
+  //
+  // Credential tiers (validated by kind-local-test.sh setup):
+  //   Tier 1 (BEST):  MFA assumed-role — temporary, scoped, MFA-gated
+  //   Tier 2 (OK):    Static IAM user — long-lived, broader access
+  //   Tier 3/4:       Invalid/expired or missing — ACK stages blocked
+  "containerEnv": {
+    "REPO_ROOT":          "/workspaces/${localWorkspaceFolderBasename}",
+    "AWS_PROFILE":        "csoc",
+    "KIND_CLUSTER_NAME":  "gen3-local",
+    "KUBECONFIG":         "/home/vscode/.gen3-dev/kubeconfig"
+  },
+
+  // Orchestration: setup validates AWS creds + generates config/local.env
+  "postCreateCommand": "bash /workspaces/${localWorkspaceFolderBasename}/scripts/kind-local-test.sh setup",
+
+  // Re-establish ArgoCD port-forward on every container start
+  "postStartCommand": "bash /workspaces/${localWorkspaceFolderBasename}/scripts/kind-local-test.sh connect",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "chat.tools.terminal.sandbox.enabled": false,
+        "chat.instructionsFilesLocations": {
+          ".github/instructions": true
+        },
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        "[yaml]": {
+          "editor.defaultFormatter": "redhat.vscode-yaml"
+        }
+      },
+      "extensions": [
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "redhat.vscode-yaml",
+        "github.copilot-chat"
+      ]
+    }
+  },
+
+  // ── Security hardening (mirrors gen3-kro) ────────────────────────────
+  // • No --privileged
+  // • No Docker-in-Docker (Kind runs on the HOST)
+  // • --security-opt=no-new-privileges prevents SUID/SGID escalation
+  "runArgs": [
+    "--security-opt=no-new-privileges"
+  ],
+
+  // Forward ports from container → host
+  //   8080: ArgoCD port-forward (kubectl port-forward → svc/argocd-server)
+  "forwardPorts": [8080],
+
+  // ── Features ─────────────────────────────────────────────────────────
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "installOhMyZsh": true,
+      "upgradePackages": true
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest"
+    }
+  }
+}

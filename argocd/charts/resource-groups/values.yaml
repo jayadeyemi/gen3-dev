@@ -1,0 +1,6 @@
+# resource-groups chart values
+#
+# KRO RGDs are static templates — they don't need Helm value parameterization
+# because KRO itself handles parameterization via the schema spec.
+#
+# This file exists for Helm chart structure compliance.

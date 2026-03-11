@@ -1,0 +1,60 @@
+# ======================================================================
+# local-addons — Bootstrap ApplicationSet for gen3-dev local CSOC
+# ======================================================================
+# Mirrors gen3-kro's csoc-addons.yaml bootstrap pattern.
+# Applied directly by kind-local-test.sh (no Terraform layer).
+#
+# Matches the ArgoCD cluster Secret labeled fleet_member: control-plane,
+# then renders the application-sets chart with addons values.
+# The application-sets chart creates one ApplicationSet per enabled addon
+# (KRO, ACK controllers, RGDs).
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: local-addons
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  syncPolicy:
+    preserveResourcesOnDeletion: false
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+  - clusters:
+      selector:
+        matchLabels:
+          fleet_member: control-plane
+      values:
+        addonChart: application-sets
+  template:
+    metadata:
+      name: local-addons
+    spec:
+      project: default
+      sources:
+      - ref: values
+        repoURL: '{{.metadata.annotations.addons_repo_url}}'
+        targetRevision: '{{.metadata.annotations.addons_repo_revision}}'
+      - repoURL: '{{.metadata.annotations.addons_repo_url}}'
+        path: '{{.metadata.annotations.addons_repo_basepath}}charts/{{.values.addonChart}}'
+        targetRevision: '{{.metadata.annotations.addons_repo_revision}}'
+        helm:
+          ignoreMissingValueFiles: true
+          valueFiles:
+            - $values/{{.metadata.annotations.addons_repo_basepath}}addons/local/addons.yaml
+            - $values/{{.metadata.annotations.addons_repo_basepath}}cluster-fleet/{{ .name }}/addons.yaml
+      destination:
+        namespace: argocd
+        name: '{{.name}}'
+      syncPolicy:
+        automated:
+          selfHeal: true
+          allowEmpty: true
+          prune: false
+        retry:
+          limit: 100
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

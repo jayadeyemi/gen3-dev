@@ -1,5 +1,0 @@
-apiVersion: v2
-name: kro-rg2-manifest
-description: Provision AWS Resource Groups via Helm Charts
-type: application
-version: 0.1.0

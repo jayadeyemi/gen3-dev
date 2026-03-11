@@ -11,283 +11,283 @@
 # to the instances chart as a Helm parameter (awsAccountId), which
 # annotates namespaces with services.k8s.aws/owner-account-id.
 instances:
-  gen3-dev-test:
-    kind: AwsGen3Test1Flat
-    namespace: gen3-dev-test
-    syncWave: "1"
-    environment: local
-    spec:
-      # ── Basic metadata ──────────────────────────────────────────────
-      name: gen3-dev-test
-      namespace: gen3-dev-test
-      region: us-east-1
-      environment: local
-      project: gen3-dev
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
+  # gen3-dev-test:
+  #   kind: AwsGen3Test1Flat
+  #   namespace: gen3-dev-test
+  #   syncWave: "1"
+  #   environment: local
+  #   spec:
+  #     # ── Basic metadata ──────────────────────────────────────────────
+  #     name: gen3-dev-test
+  #     namespace: gen3-dev-test
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
 
-      # ── Network Configuration ───────────────────────────────────────
-      vpcCIDR: "10.0.0.0/16"
-      publicSubnetCIDRs:
-        - "10.0.240.0/24"
-        - "10.0.241.0/24"
-      privateSubnetCIDRs:
-        - "10.0.0.0/20"
-        - "10.0.16.0/20"
-      dbSubnetCIDRs:
-        - "10.0.32.0/24"
-        - "10.0.33.0/24"
-      availabilityZones:
-        - "us-east-1a"
-        - "us-east-1b"
+  #     # ── Network Configuration ───────────────────────────────────────
+  #     vpcCIDR: "10.0.0.0/16"
+  #     publicSubnetCIDRs:
+  #       - "10.0.240.0/24"
+  #       - "10.0.241.0/24"
+  #     privateSubnetCIDRs:
+  #       - "10.0.0.0/20"
+  #       - "10.0.16.0/20"
+  #     dbSubnetCIDRs:
+  #       - "10.0.32.0/24"
+  #       - "10.0.33.0/24"
+  #     availabilityZones:
+  #       - "us-east-1a"
+  #       - "us-east-1b"
 
-      # ── S3 Buckets ─────────────────────────────────────────────────
-      loggingBucketName: gen3-dev-test-logging
-      dataBucketName: gen3-dev-test-data
-      uploadBucketName: gen3-dev-test-upload
+  #     # ── S3 Buckets ─────────────────────────────────────────────────
+  #     loggingBucketName: gen3-dev-test-logging
+  #     dataBucketName: gen3-dev-test-data
+  #     uploadBucketName: gen3-dev-test-upload
 
-      # ── KMS ─────────────────────────────────────────────────────────
-      kmsKeyDescription: gen3-dev-test encryption key
-      kmsKeyAlias: gen3-dev-test-key
+  #     # ── KMS ─────────────────────────────────────────────────────────
+  #     kmsKeyDescription: gen3-dev-test encryption key
+  #     kmsKeyAlias: gen3-dev-test-key
 
-  # ──────────────────────────────────────────────────────────────────────
-  # KRO Capability Tests
-  #
-  # ArgoCD-managed test instances for all 7 KRO capability RGDs.
-  # Instances at sync-wave 15 run after RGDs (wave 10).
-  # Producer→consumer pairs use wave 15 → wave 20 ordering.
-  #
-  # RGD source: argocd/charts/resource-groups/templates/krotest*.yaml
-  # All tests use K8s-native resources (Namespaces, ConfigMaps, Secrets)
-  # → zero AWS cost.
-  # ──────────────────────────────────────────────────────────────────────
+  # # ──────────────────────────────────────────────────────────────────────
+  # # KRO Capability Tests
+  # #
+  # # ArgoCD-managed test instances for all 7 KRO capability RGDs.
+  # # Instances at sync-wave 15 run after RGDs (wave 10).
+  # # Producer→consumer pairs use wave 15 → wave 20 ordering.
+  # #
+  # # RGD source: argocd/charts/resource-groups/templates/krotest*.yaml
+  # # All tests use K8s-native resources (Namespaces, ConfigMaps, Secrets)
+  # # → zero AWS cost.
+  # # ──────────────────────────────────────────────────────────────────────
 
-  # ── Test 01: forEach ──────────────────────────────────────────────────
-  # Validates: single-dimension forEach, cartesian product forEach,
-  # conditional forEach via includeWhen.
+  # # ── Test 01: forEach ──────────────────────────────────────────────────
+  # # Validates: single-dimension forEach, cartesian product forEach,
+  # # conditional forEach via includeWhen.
 
-  kro-foreach-basic:
-    kind: KroForEachTest
-    namespace: kro-test-foreach
-    syncWave: "15"
-    environment: local
-    spec:
-      name: foreach-basic
-      namespace: kro-test-foreach
-      environment: local
-      values:
-        - alpha
-        - beta
-        - gamma
-      regions:
-        - us-east-1
-      tiers:
-        - web
-      cartesianEnabled: false
+  # kro-foreach-basic:
+  #   kind: KroForEachTest
+  #   namespace: kro-test-foreach
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: foreach-basic
+  #     namespace: kro-test-foreach
+  #     environment: local
+  #     values:
+  #       - alpha
+  #       - beta
+  #       - gamma
+  #     regions:
+  #       - us-east-1
+  #     tiers:
+  #       - web
+  #     cartesianEnabled: false
 
-  kro-foreach-cartesian:
-    kind: KroForEachTest
-    namespace: kro-test-foreach-cart
-    syncWave: "15"
-    environment: local
-    spec:
-      name: foreach-cartesian
-      namespace: kro-test-foreach-cart
-      environment: local
-      values:
-        - alpha
-        - beta
-      regions:
-        - us-east-1
-        - us-west-2
-      tiers:
-        - web
-        - api
-      cartesianEnabled: true
+  # kro-foreach-cartesian:
+  #   kind: KroForEachTest
+  #   namespace: kro-test-foreach-cart
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: foreach-cartesian
+  #     namespace: kro-test-foreach-cart
+  #     environment: local
+  #     values:
+  #       - alpha
+  #       - beta
+  #     regions:
+  #       - us-east-1
+  #       - us-west-2
+  #     tiers:
+  #       - web
+  #       - api
+  #     cartesianEnabled: true
 
-  # ── Test 02: includeWhen ─────────────────────────────────────────────
-  # Validates: single-condition, AND multi-condition, OR, cascade.
+  # # ── Test 02: includeWhen ─────────────────────────────────────────────
+  # # Validates: single-condition, AND multi-condition, OR, cascade.
 
-  kro-includewhen-minimal:
-    kind: KroIncludeWhenTest
-    namespace: kro-test-includewhen
-    syncWave: "15"
-    environment: local
-    spec:
-      name: includewhen-minimal
-      namespace: kro-test-includewhen
-      environment: local
-      featureA: true
-      featureB: false
-      featureC: false
-      tier: dev
+  # kro-includewhen-minimal:
+  #   kind: KroIncludeWhenTest
+  #   namespace: kro-test-includewhen
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: includewhen-minimal
+  #     namespace: kro-test-includewhen
+  #     environment: local
+  #     featureA: true
+  #     featureB: false
+  #     featureC: false
+  #     tier: dev
 
-  kro-includewhen-full:
-    kind: KroIncludeWhenTest
-    namespace: kro-test-includewhen-full
-    syncWave: "15"
-    environment: local
-    spec:
-      name: includewhen-full
-      namespace: kro-test-includewhen-full
-      environment: local
-      featureA: true
-      featureB: true
-      featureC: true
-      tier: prod
+  # kro-includewhen-full:
+  #   kind: KroIncludeWhenTest
+  #   namespace: kro-test-includewhen-full
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: includewhen-full
+  #     namespace: kro-test-includewhen-full
+  #     environment: local
+  #     featureA: true
+  #     featureB: true
+  #     featureC: true
+  #     tier: prod
 
-  # ── Test 03: bridge-producer ──────────────────────────────────────────
-  # Validates: KRO produces bridge Secret aggregating multiple outputs.
-  # Bridge Secret name = {spec.name}-bridge-outputs = bridge-prod-bridge-outputs
+  # # ── Test 03: bridge-producer ──────────────────────────────────────────
+  # # Validates: KRO produces bridge Secret aggregating multiple outputs.
+  # # Bridge Secret name = {spec.name}-bridge-outputs = bridge-prod-bridge-outputs
 
-  kro-bridge-producer:
-    kind: KroBridgeProducer
-    namespace: kro-test-bridge
-    syncWave: "15"
-    environment: local
-    spec:
-      name: bridge-prod
-      namespace: kro-test-bridge
-      environment: local
-      vpcCIDR: "10.1.0.0/16"
-      subnetCount: "3"
-      createBridgeSecret: true
+  # kro-bridge-producer:
+  #   kind: KroBridgeProducer
+  #   namespace: kro-test-bridge
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: bridge-prod
+  #     namespace: kro-test-bridge
+  #     environment: local
+  #     vpcCIDR: "10.1.0.0/16"
+  #     subnetCount: "3"
+  #     createBridgeSecret: true
 
-  # ── Test 04: bridge-consumer ──────────────────────────────────────────
-  # Validates: externalRef (Secret), cross-RGD data consumption.
-  # Wave 20 > producer wave 15 — ensures bridge Secret exists first.
-  # namespace matches producer so externalRef can read the Secret.
+  # # ── Test 04: bridge-consumer ──────────────────────────────────────────
+  # # Validates: externalRef (Secret), cross-RGD data consumption.
+  # # Wave 20 > producer wave 15 — ensures bridge Secret exists first.
+  # # namespace matches producer so externalRef can read the Secret.
 
-  kro-bridge-consumer:
-    kind: KroBridgeConsumer
-    namespace: kro-test-bridge
-    syncWave: "20"
-    environment: local
-    spec:
-      name: bridge-consumer
-      namespace: kro-test-bridge
-      environment: local
-      bridgeSecretName: bridge-prod-bridge-outputs
+  # kro-bridge-consumer:
+  #   kind: KroBridgeConsumer
+  #   namespace: kro-test-bridge
+  #   syncWave: "20"
+  #   environment: local
+  #   spec:
+  #     name: bridge-consumer
+  #     namespace: kro-test-bridge
+  #     environment: local
+  #     bridgeSecretName: bridge-prod-bridge-outputs
 
-  # ── Test 05: CEL expressions ─────────────────────────────────────────
-  # Validates: ternary, string ops (split/join/slice), math, optionals.
+  # # ── Test 05: CEL expressions ─────────────────────────────────────────
+  # # Validates: ternary, string ops (split/join/slice), math, optionals.
 
-  kro-cel-dev:
-    kind: KroCELTest
-    namespace: kro-test-cel
-    syncWave: "15"
-    environment: local
-    spec:
-      name: cel-dev
-      namespace: kro-test-cel
-      environment: local
-      fullDNSName: cel-dev.local.example.com
-      tagList: "env:local,team:platform,project:gen3-dev"
-      tier: dev
-      replicas: 1
-      optionalLabel: ""
+  # kro-cel-dev:
+  #   kind: KroCELTest
+  #   namespace: kro-test-cel
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: cel-dev
+  #     namespace: kro-test-cel
+  #     environment: local
+  #     fullDNSName: cel-dev.local.example.com
+  #     tagList: "env:local,team:platform,project:gen3-dev"
+  #     tier: dev
+  #     replicas: 1
+  #     optionalLabel: ""
 
-  kro-cel-prod:
-    kind: KroCELTest
-    namespace: kro-test-cel-prod
-    syncWave: "15"
-    environment: local
-    spec:
-      name: cel-prod
-      namespace: kro-test-cel-prod
-      environment: local
-      fullDNSName: cel-prod.local.example.com
-      tagList: "env:local,team:platform,project:gen3-dev,tier:prod"
-      tier: prod
-      replicas: 3
-      optionalLabel: critical
+  # kro-cel-prod:
+  #   kind: KroCELTest
+  #   namespace: kro-test-cel-prod
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: cel-prod
+  #     namespace: kro-test-cel-prod
+  #     environment: local
+  #     fullDNSName: cel-prod.local.example.com
+  #     tagList: "env:local,team:platform,project:gen3-dev,tier:prod"
+  #     tier: prod
+  #     replicas: 3
+  #     optionalLabel: critical
 
-  # ── Test 06: SecurityGroup & RouteTable conditional entries ────────────
-  # Validates: Pattern A (multiple SGs with includeWhen), AND-gated admin SG,
-  # Pattern A for RouteTables (public-rt always, private-rt conditional).
-  # Finding: KRO CANNOT add entries conditionally within a single SG or RT.
-  # Solution: multiple SG/RT resources per tier (Pattern A).
-  # Resources: REAL AWS (VPC, IGW, SecurityGroup, RouteTable) — zero cost.
+  # # ── Test 06: SecurityGroup & RouteTable conditional entries ────────────
+  # # Validates: Pattern A (multiple SGs with includeWhen), AND-gated admin SG,
+  # # Pattern A for RouteTables (public-rt always, private-rt conditional).
+  # # Finding: KRO CANNOT add entries conditionally within a single SG or RT.
+  # # Solution: multiple SG/RT resources per tier (Pattern A).
+  # # Resources: REAL AWS (VPC, IGW, SecurityGroup, RouteTable) — zero cost.
 
-  kro-sg-base-only:
-    kind: KroTest06SgConditional
-    namespace: kro-test-sg
-    syncWave: "15"
-    environment: local
-    spec:
-      name: secgrp-base
-      namespace: kro-test-sg
-      environment: local
-      region: us-east-1
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
-      project: gen3-dev
-      vpcCidr: "10.100.0.0/16"
-      databaseEnabled: false
-      computeEnabled: false
-      adminEnabled: false
-      privateRoutingEnabled: false
+  # kro-sg-base-only:
+  #   kind: KroTest06SgConditional
+  #   namespace: kro-test-sg
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: secgrp-base
+  #     namespace: kro-test-sg
+  #     environment: local
+  #     region: us-east-1
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     project: gen3-dev
+  #     vpcCidr: "10.100.0.0/16"
+  #     databaseEnabled: false
+  #     computeEnabled: false
+  #     adminEnabled: false
+  #     privateRoutingEnabled: false
 
-  kro-sg-all-features:
-    kind: KroTest06SgConditional
-    namespace: kro-test-sg-full
-    syncWave: "15"
-    environment: local
-    spec:
-      name: secgrp-full
-      namespace: kro-test-sg-full
-      environment: local
-      region: us-east-1
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
-      project: gen3-dev
-      vpcCidr: "10.101.0.0/16"
-      databaseEnabled: true
-      computeEnabled: true
-      adminEnabled: true
-      privateRoutingEnabled: true
+  # kro-sg-all-features:
+  #   kind: KroTest06SgConditional
+  #   namespace: kro-test-sg-full
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: secgrp-full
+  #     namespace: kro-test-sg-full
+  #     environment: local
+  #     region: us-east-1
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     project: gen3-dev
+  #     vpcCidr: "10.101.0.0/16"
+  #     databaseEnabled: true
+  #     computeEnabled: true
+  #     adminEnabled: true
+  #     privateRoutingEnabled: true
 
-  # ── Test 07a: cross-RGD producer ─────────────────────────────────────
-  # Real ACK resources: Foundation VPC + base SecurityGroup.
-  # Publishes real ACK status values (vpc_id, base_sg_id) to bridge ConfigMap.
-  # Bridge ConfigMap name = {spec.name}-crossrgd-bridge
+  # # ── Test 07a: cross-RGD producer ─────────────────────────────────────
+  # # Real ACK resources: Foundation VPC + base SecurityGroup.
+  # # Publishes real ACK status values (vpc_id, base_sg_id) to bridge ConfigMap.
+  # # Bridge ConfigMap name = {spec.name}-crossrgd-bridge
 
-  kro-crossrgd-producer:
-    kind: KroTest07Producer
-    namespace: kro-test-crossrgd
-    syncWave: "15"
-    environment: local
-    spec:
-      name: crossrgd-prod
-      namespace: kro-test-crossrgd
-      environment: local
-      region: us-east-1
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
-      project: gen3-dev
-      vpcCidr: "10.102.0.0/16"
+  # kro-crossrgd-producer:
+  #   kind: KroTest07Producer
+  #   namespace: kro-test-crossrgd
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: crossrgd-prod
+  #     namespace: kro-test-crossrgd
+  #     environment: local
+  #     region: us-east-1
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     project: gen3-dev
+  #     vpcCidr: "10.102.0.0/16"
 
-  # ── Test 07b: cross-RGD consumer ─────────────────────────────────────
-  # Reads bridge ConfigMap via externalRef (cross-namespace read).
-  # Creates a real SecurityGroup in the producer's VPC using the VPC ID
-  # from the bridge, with a userIDGroupPairs rule referencing producer SG.
-  # Wave 20 > producer wave 15. Consumer namespace ≠ producer namespace.
+  # # ── Test 07b: cross-RGD consumer ─────────────────────────────────────
+  # # Reads bridge ConfigMap via externalRef (cross-namespace read).
+  # # Creates a real SecurityGroup in the producer's VPC using the VPC ID
+  # # from the bridge, with a userIDGroupPairs rule referencing producer SG.
+  # # Wave 20 > producer wave 15. Consumer namespace ≠ producer namespace.
 
-  kro-crossrgd-consumer:
-    kind: KroTest07Consumer
-    namespace: kro-test-crossrgd-consumer
-    syncWave: "20"
-    environment: local
-    spec:
-      name: crossrgd-consumer
-      namespace: kro-test-crossrgd-consumer
-      environment: local
-      region: us-east-1
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
-      project: gen3-dev
-      producerBridgeName: crossrgd-prod-crossrgd-bridge
-      producerNamespace: kro-test-crossrgd
+  # kro-crossrgd-consumer:
+  #   kind: KroTest07Consumer
+  #   namespace: kro-test-crossrgd-consumer
+  #   syncWave: "20"
+  #   environment: local
+  #   spec:
+  #     name: crossrgd-consumer
+  #     namespace: kro-test-crossrgd-consumer
+  #     environment: local
+  #     region: us-east-1
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     project: gen3-dev
+  #     producerBridgeName: crossrgd-prod-crossrgd-bridge
+  #     producerNamespace: kro-test-crossrgd
 
   # ──────────────────────────────────────────────────────────────────────
   # Modular RGD Instances — Plan 02 7-Tier Architecture

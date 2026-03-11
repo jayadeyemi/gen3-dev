@@ -43,6 +43,7 @@ spec:
           ignoreMissingValueFiles: true
           valueFiles:
             - '$values/{{.metadata.annotations.addons_repo_basepath}}cluster-fleet/{{.name}}/infrastructure.yaml'
+            - '$values/{{.metadata.annotations.addons_repo_basepath}}cluster-fleet/{{.name}}/tests.yaml'
           parameters:
             - name: awsAccountId
               value: '{{.metadata.annotations.aws_account_id}}'

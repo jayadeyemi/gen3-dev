@@ -1,32 +1,49 @@
-# Local infrastructure instance — test graph only.
+# infrastructure.yaml — Production KRO instance declarations for gen3-dev
+#
 # Consumed by local-infra-instances.yaml bootstrap ApplicationSet
 # via the instances chart.
 #
-# Only the test graph is instantiated. The full infra1flat, baseflat,
-# and networkflat RGDs are registered as CRDs but not instantiated.
+# Active instances are uncommented. Commented blocks are reference stubs
+# showing the full spec for each registered RGD.
+#
+# KRO capability test instances have been moved to tests.yaml.
+# See: argocd/cluster-fleet/local-aws-dev/tests.yaml
 #
 # NOTE: accountID is NOT stored here. It is resolved at runtime via
 # aws sts get-caller-identity and set as an annotation on the ArgoCD
 # cluster Secret. The local-infra-instances ApplicationSet passes it
 # to the instances chart as a Helm parameter (awsAccountId), which
 # annotates namespaces with services.k8s.aws/owner-account-id.
-instances:
-  # gen3-dev-test:
-  #   kind: AwsGen3Test1Flat
-  #   namespace: gen3-dev-test
-  #   syncWave: "1"
+#
+# Sync-wave ordering (matches gen3-kro):
+#   Wave  1:  ACK controllers
+#   Wave 10:  RGDs
+#   Wave 15:  Tier 0 instances (Foundation)
+#   Wave 20:  Tier 1 instances (Database — depends on Foundation bridge)
+#   Wave 25:  Tier 3 instances (Compute  — depends on Foundation bridge)
+# ─────────────────────────────────────────────────────────────────────────────
+
+instances: {}
+
+  # ── AwsGen3Infra1Flat — Full monolithic graph (reference only) ────────────
+  # 31+ resources: full gen3 infrastructure including EKS + Aurora.
+  # NOT instantiated here — too expensive (~$500+/mo) and superseded by
+  # the modular 7-tier architecture (Plan 02).
+  # RGD: awsgen3infra1flat-rg.yaml
+
+  # gen3-infra:
+  #   kind: AwsGen3Infra1Flat
+  #   namespace: gen3-infra
+  #   syncWave: "15"
   #   environment: local
   #   spec:
-  #     # ── Basic metadata ──────────────────────────────────────────────
-  #     name: gen3-dev-test
-  #     namespace: gen3-dev-test
+  #     name: gen3-dev
+  #     namespace: gen3-infra
   #     region: us-east-1
   #     environment: local
   #     project: gen3-dev
   #     adoptionPolicy: adopt-or-create
   #     deletionPolicy: delete
-
-  #     # ── Network Configuration ───────────────────────────────────────
   #     vpcCIDR: "10.0.0.0/16"
   #     publicSubnetCIDRs:
   #       - "10.0.240.0/24"
@@ -40,313 +57,145 @@ instances:
   #     availabilityZones:
   #       - "us-east-1a"
   #       - "us-east-1b"
+  #     loggingBucketName: gen3-dev-infra-logging
+  #     dataBucketName: gen3-dev-infra-data
+  #     uploadBucketName: gen3-dev-infra-upload
+  #     kmsKeyDescription: gen3-dev infra encryption key
+  #     kmsKeyAlias: gen3-dev-infra-key
+  #     eksVersion: "1.30"
 
-  #     # ── S3 Buckets ─────────────────────────────────────────────────
+  # ── AwsGen3Base1Flat — Minimal foundation graph (reference only) ──────────
+  # ~15 resources: VPC + networking + KMS + IAM + S3 (no NAT, no DB subnets).
+  # Superseded by modular AwsGen3Foundation1.
+  # RGD: awsgen3base1flat-rg.yaml
+
+  # gen3-base:
+  #   kind: AwsGen3Base1Flat
+  #   namespace: gen3-base
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: gen3-dev
+  #     namespace: gen3-base
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     vpcCIDR: "10.0.0.0/16"
+  #     publicSubnetCIDRs:
+  #       - "10.0.240.0/24"
+  #       - "10.0.241.0/24"
+  #     privateSubnetCIDRs:
+  #       - "10.0.0.0/20"
+  #       - "10.0.16.0/20"
+  #     availabilityZones:
+  #       - "us-east-1a"
+  #       - "us-east-1b"
+  #     loggingBucketName: gen3-dev-base-logging
+  #     dataBucketName: gen3-dev-base-data
+  #     uploadBucketName: gen3-dev-base-upload
+  #     kmsKeyDescription: gen3-dev base encryption key
+
+  # ── AwsGen3Network1Flat — Network expansion (reference only) ─────────────
+  # ~9 resources: NAT + EIP + DB subnets + SGs on top of Base.
+  # Superseded by modular architecture.
+  # RGD: awsgen3network1flat-rg.yaml
+
+  # gen3-network:
+  #   kind: AwsGen3Network1Flat
+  #   namespace: gen3-base
+  #   syncWave: "20"
+  #   environment: local
+  #   spec:
+  #     name: gen3-dev
+  #     namespace: gen3-base
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+
+  # ── AwsGen3Test1Flat — Low-cost test graph (~$37/mo) ─────────────────────
+  # 24 resources: VPC + KMS + S3 + DB subnet group (no EKS/Aurora).
+  # Uses 10.0.0.0/16 CIDR. Standalone — no bridge dependency.
+  # RGD: awsgen3test1flat-rg.yaml
+
+  # gen3-dev-test:
+  #   kind: AwsGen3Test1Flat
+  #   namespace: gen3-dev-test
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: gen3-dev-test
+  #     namespace: gen3-dev-test
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     vpcCIDR: "10.0.0.0/16"
+  #     publicSubnetCIDRs:
+  #       - "10.0.240.0/24"
+  #       - "10.0.241.0/24"
+  #     privateSubnetCIDRs:
+  #       - "10.0.0.0/20"
+  #       - "10.0.16.0/20"
+  #     dbSubnetCIDRs:
+  #       - "10.0.32.0/24"
+  #       - "10.0.33.0/24"
+  #     availabilityZones:
+  #       - "us-east-1a"
+  #       - "us-east-1b"
   #     loggingBucketName: gen3-dev-test-logging
   #     dataBucketName: gen3-dev-test-data
   #     uploadBucketName: gen3-dev-test-upload
-
-  #     # ── KMS ─────────────────────────────────────────────────────────
   #     kmsKeyDescription: gen3-dev-test encryption key
   #     kmsKeyAlias: gen3-dev-test-key
 
-  # # ──────────────────────────────────────────────────────────────────────
-  # # KRO Capability Tests
-  # #
-  # # ArgoCD-managed test instances for all 7 KRO capability RGDs.
-  # # Instances at sync-wave 15 run after RGDs (wave 10).
-  # # Producer→consumer pairs use wave 15 → wave 20 ordering.
-  # #
-  # # RGD source: argocd/charts/resource-groups/templates/krotest*.yaml
-  # # All tests use K8s-native resources (Namespaces, ConfigMaps, Secrets)
-  # # → zero AWS cost.
-  # # ──────────────────────────────────────────────────────────────────────
+  # ── AwsGen3Foundation1 — Tier 0: Foundation (~$37/mo) ACTIVE ─────────────
+  # 16 resources: VPC + gateways + route tables + subnets + KMS + S3.
+  # Standalone — no bridge dependency as producer.
+  # Creates bridge ConfigMap for Tier 1/3 downstream tiers.
+  # Uses 10.1.0.0/16 CIDR (separate from test graph's 10.0.0.0/16).
+  # RGD: awsgen3foundation1-rg.yaml
 
-  # # ── Test 01: forEach ──────────────────────────────────────────────────
-  # # Validates: single-dimension forEach, cartesian product forEach,
-  # # conditional forEach via includeWhen.
-
-  # kro-foreach-basic:
-  #   kind: KroForEachTest
-  #   namespace: kro-test-foreach
+  # gen3-foundation:
+  #   kind: AwsGen3Foundation1
+  #   namespace: gen3-foundation
   #   syncWave: "15"
   #   environment: local
   #   spec:
-  #     name: foreach-basic
-  #     namespace: kro-test-foreach
+  #     name: gen3-dev
+  #     namespace: gen3-foundation
+  #     region: us-east-1
   #     environment: local
-  #     values:
-  #       - alpha
-  #       - beta
-  #       - gamma
-  #     regions:
-  #       - us-east-1
-  #     tiers:
-  #       - web
-  #     cartesianEnabled: false
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
 
-  # kro-foreach-cartesian:
-  #   kind: KroForEachTest
-  #   namespace: kro-test-foreach-cart
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: foreach-cartesian
-  #     namespace: kro-test-foreach-cart
-  #     environment: local
-  #     values:
-  #       - alpha
-  #       - beta
-  #     regions:
-  #       - us-east-1
-  #       - us-west-2
-  #     tiers:
-  #       - web
-  #       - api
-  #     cartesianEnabled: true
-
-  # # ── Test 02: includeWhen ─────────────────────────────────────────────
-  # # Validates: single-condition, AND multi-condition, OR, cascade.
-
-  # kro-includewhen-minimal:
-  #   kind: KroIncludeWhenTest
-  #   namespace: kro-test-includewhen
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: includewhen-minimal
-  #     namespace: kro-test-includewhen
-  #     environment: local
-  #     featureA: true
-  #     featureB: false
-  #     featureC: false
-  #     tier: dev
-
-  # kro-includewhen-full:
-  #   kind: KroIncludeWhenTest
-  #   namespace: kro-test-includewhen-full
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: includewhen-full
-  #     namespace: kro-test-includewhen-full
-  #     environment: local
-  #     featureA: true
-  #     featureB: true
-  #     featureC: true
-  #     tier: prod
-
-  # # ── Test 03: bridge-producer ──────────────────────────────────────────
-  # # Validates: KRO produces bridge Secret aggregating multiple outputs.
-  # # Bridge Secret name = {spec.name}-bridge-outputs = bridge-prod-bridge-outputs
-
-  # kro-bridge-producer:
-  #   kind: KroBridgeProducer
-  #   namespace: kro-test-bridge
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: bridge-prod
-  #     namespace: kro-test-bridge
-  #     environment: local
+  #     # Network
   #     vpcCIDR: "10.1.0.0/16"
-  #     subnetCount: "3"
+  #     publicSubnetCIDRs:
+  #       - "10.1.240.0/24"
+  #       - "10.1.241.0/24"
+  #     privateSubnetCIDRs:
+  #       - "10.1.0.0/20"
+  #       - "10.1.16.0/20"
+  #     availabilityZones:
+  #       - "us-east-1a"
+  #       - "us-east-1b"
+
+  #     # Storage (names must be globally unique in S3)
+  #     loggingBucketName: gen3-dev-foundation-logging
+  #     dataBucketName: gen3-dev-foundation-data
+  #     uploadBucketName: gen3-dev-foundation-upload
+
+  #     # KMS
+  #     kmsKeyDescription: gen3-dev foundation encryption key
+
+  #     # Bridge (creates ConfigMap for Database/Compute tiers)
   #     createBridgeSecret: true
-
-  # # ── Test 04: bridge-consumer ──────────────────────────────────────────
-  # # Validates: externalRef (Secret), cross-RGD data consumption.
-  # # Wave 20 > producer wave 15 — ensures bridge Secret exists first.
-  # # namespace matches producer so externalRef can read the Secret.
-
-  # kro-bridge-consumer:
-  #   kind: KroBridgeConsumer
-  #   namespace: kro-test-bridge
-  #   syncWave: "20"
-  #   environment: local
-  #   spec:
-  #     name: bridge-consumer
-  #     namespace: kro-test-bridge
-  #     environment: local
-  #     bridgeSecretName: bridge-prod-bridge-outputs
-
-  # # ── Test 05: CEL expressions ─────────────────────────────────────────
-  # # Validates: ternary, string ops (split/join/slice), math, optionals.
-
-  # kro-cel-dev:
-  #   kind: KroCELTest
-  #   namespace: kro-test-cel
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: cel-dev
-  #     namespace: kro-test-cel
-  #     environment: local
-  #     fullDNSName: cel-dev.local.example.com
-  #     tagList: "env:local,team:platform,project:gen3-dev"
-  #     tier: dev
-  #     replicas: 1
-  #     optionalLabel: ""
-
-  # kro-cel-prod:
-  #   kind: KroCELTest
-  #   namespace: kro-test-cel-prod
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: cel-prod
-  #     namespace: kro-test-cel-prod
-  #     environment: local
-  #     fullDNSName: cel-prod.local.example.com
-  #     tagList: "env:local,team:platform,project:gen3-dev,tier:prod"
-  #     tier: prod
-  #     replicas: 3
-  #     optionalLabel: critical
-
-  # # ── Test 06: SecurityGroup & RouteTable conditional entries ────────────
-  # # Validates: Pattern A (multiple SGs with includeWhen), AND-gated admin SG,
-  # # Pattern A for RouteTables (public-rt always, private-rt conditional).
-  # # Finding: KRO CANNOT add entries conditionally within a single SG or RT.
-  # # Solution: multiple SG/RT resources per tier (Pattern A).
-  # # Resources: REAL AWS (VPC, IGW, SecurityGroup, RouteTable) — zero cost.
-
-  # kro-sg-base-only:
-  #   kind: KroTest06SgConditional
-  #   namespace: kro-test-sg
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: secgrp-base
-  #     namespace: kro-test-sg
-  #     environment: local
-  #     region: us-east-1
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-  #     project: gen3-dev
-  #     vpcCidr: "10.100.0.0/16"
-  #     databaseEnabled: false
-  #     computeEnabled: false
-  #     adminEnabled: false
-  #     privateRoutingEnabled: false
-
-  # kro-sg-all-features:
-  #   kind: KroTest06SgConditional
-  #   namespace: kro-test-sg-full
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: secgrp-full
-  #     namespace: kro-test-sg-full
-  #     environment: local
-  #     region: us-east-1
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-  #     project: gen3-dev
-  #     vpcCidr: "10.101.0.0/16"
-  #     databaseEnabled: true
-  #     computeEnabled: true
-  #     adminEnabled: true
-  #     privateRoutingEnabled: true
-
-  # # ── Test 07a: cross-RGD producer ─────────────────────────────────────
-  # # Real ACK resources: Foundation VPC + base SecurityGroup.
-  # # Publishes real ACK status values (vpc_id, base_sg_id) to bridge ConfigMap.
-  # # Bridge ConfigMap name = {spec.name}-crossrgd-bridge
-
-  # kro-crossrgd-producer:
-  #   kind: KroTest07Producer
-  #   namespace: kro-test-crossrgd
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: crossrgd-prod
-  #     namespace: kro-test-crossrgd
-  #     environment: local
-  #     region: us-east-1
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-  #     project: gen3-dev
-  #     vpcCidr: "10.102.0.0/16"
-
-  # # ── Test 07b: cross-RGD consumer ─────────────────────────────────────
-  # # Reads bridge ConfigMap via externalRef (cross-namespace read).
-  # # Creates a real SecurityGroup in the producer's VPC using the VPC ID
-  # # from the bridge, with a userIDGroupPairs rule referencing producer SG.
-  # # Wave 20 > producer wave 15. Consumer namespace ≠ producer namespace.
-
-  # kro-crossrgd-consumer:
-  #   kind: KroTest07Consumer
-  #   namespace: kro-test-crossrgd-consumer
-  #   syncWave: "20"
-  #   environment: local
-  #   spec:
-  #     name: crossrgd-consumer
-  #     namespace: kro-test-crossrgd-consumer
-  #     environment: local
-  #     region: us-east-1
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-  #     project: gen3-dev
-  #     producerBridgeName: crossrgd-prod-crossrgd-bridge
-  #     producerNamespace: kro-test-crossrgd
-
-  # ──────────────────────────────────────────────────────────────────────
-  # Modular RGD Instances — Plan 02 7-Tier Architecture
-  #
-  # Tier 0 (Foundation) deploys standalone networking, KMS, and S3.
-  # Tier 1 (Database) depends on Foundation bridge (syncWave 20 > 15).
-  # Tier 3 (Compute) depends on Foundation bridge — NOT instantiated
-  # here due to cost (~$350/mo). RGD is registered as a CRD only.
-  #
-  # NOTE: Foundation creates a bridge ConfigMap at sync-wave 15 that
-  # downstream tiers read via externalRef. Database uses sync-wave 20,
-  # matching the producer→consumer ordering proven in Tests 3/4 and 7a/7b.
-  #
-  # COST: Foundation ~$37/mo (NAT Gateway + minor).
-  #        Database ~$45-350/mo (Aurora Serverless v2 min 0.5 ACU).
-  #        These stack with existing gen3-dev-test instance costs.
-  # ──────────────────────────────────────────────────────────────────────
-
-  # ── Tier 0: Foundation ────────────────────────────────────────────────
-  # Standalone: VPC + gateways + route tables + subnets + KMS + S3.
-  # Creates bridge ConfigMap for downstream tiers.
-  # Uses 10.1.0.0/16 CIDR (separate from gen3-dev-test's 10.0.0.0/16).
-
-  gen3-foundation:
-    kind: AwsGen3Foundation1
-    namespace: gen3-foundation
-    syncWave: "15"
-    environment: local
-    spec:
-      name: gen3-dev
-      namespace: gen3-foundation
-      region: us-east-1
-      environment: local
-      project: gen3-dev
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
-
-      # Network
-      vpcCIDR: "10.1.0.0/16"
-      publicSubnetCIDRs:
-        - "10.1.240.0/24"
-        - "10.1.241.0/24"
-      privateSubnetCIDRs:
-        - "10.1.0.0/20"
-        - "10.1.16.0/20"
-      availabilityZones:
-        - "us-east-1a"
-        - "us-east-1b"
-
-      # Storage (names must be globally unique in S3)
-      loggingBucketName: gen3-dev-foundation-logging
-      dataBucketName: gen3-dev-foundation-data
-      uploadBucketName: gen3-dev-foundation-upload
-
-      # KMS
-      kmsKeyDescription: gen3-dev foundation encryption key
-
-      # Bridge (creates ConfigMap for Database/Compute tiers)
-      createBridgeSecret: true
 
   # ── Tier 1: Database ──────────────────────────────────────────────────
   # PREREQUISITE: Before deploying, create the master password Secret:

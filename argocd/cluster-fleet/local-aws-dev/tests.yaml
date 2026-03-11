@@ -1,0 +1,267 @@
+# KRO Capability Test Instances — gen3-dev
+#
+# All instances are COMMENTED OUT by default.
+# Uncomment individual blocks to deploy specific tests via ArgoCD.
+#
+# ── How to activate ─────────────────────────────────────────────────────────
+# This file is NOT automatically picked up by the local-infra-instances
+# ApplicationSet (which reads only infrastructure.yaml). To deploy tests
+# via ArgoCD, either:
+#   A) Copy the instance block(s) you want into infrastructure.yaml, OR
+#   B) Wire this file in as a second valueFiles entry in
+#      argocd/bootstrap/local-infra-instances.yaml:
+#        valueFiles:
+#          - '$values/.../infrastructure.yaml'
+#          - '$values/.../tests.yaml'   ← add this line
+#
+# To deploy ad-hoc (bypassing ArgoCD), uncomment the block and run:
+#   helm template infrastructure-instance argocd/charts/instances/ \
+#     -f argocd/cluster-fleet/local-aws-dev/tests.yaml | kubectl apply -f -
+#
+# ── Test inventory ───────────────────────────────────────────────────────────
+# Test 01 — forEach          (pure K8s, zero AWS cost)
+# Test 02 — includeWhen      (pure K8s, zero AWS cost)
+# Test 03 — bridge-producer  (pure K8s, zero AWS cost)
+# Test 04 — bridge-consumer  (pure K8s, zero AWS cost)
+# Test 05 — CEL expressions  (pure K8s, zero AWS cost)
+# Test 06 — SG conditional   (REAL AWS: VPC + SecurityGroups, ~$0/mo)
+# Test 07a — cross-RGD producer (REAL AWS: VPC + SecurityGroup, ~$0/mo)
+# Test 07b — cross-RGD consumer (REAL AWS: SecurityGroup, ~$0/mo)
+#
+# See: outputs/plans/03-kro-capability-test-report.md for test findings.
+# ────────────────────────────────────────────────────────────────────────────
+
+instances: {}
+
+  # ── Test 01: forEach ──────────────────────────────────────────────────────
+  # Validates: single-dimension forEach, cartesian product forEach,
+  # conditional forEach via includeWhen.
+  # RGD: krotest01-foreach-rg.yaml  |  Kind: KroForEachTest
+
+  # kro-foreach-basic:
+  #   kind: KroForEachTest
+  #   namespace: kro-test-foreach
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: foreach-basic
+  #     namespace: kro-test-foreach
+  #     environment: local
+  #     values:
+  #       - alpha
+  #       - beta
+  #       - gamma
+  #     regions:
+  #       - us-east-1
+  #     tiers:
+  #       - web
+  #     cartesianEnabled: false
+
+  # kro-foreach-cartesian:
+  #   kind: KroForEachTest
+  #   namespace: kro-test-foreach-cart
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: foreach-cartesian
+  #     namespace: kro-test-foreach-cart
+  #     environment: local
+  #     values:
+  #       - alpha
+  #       - beta
+  #     regions:
+  #       - us-east-1
+  #       - us-west-2
+  #     tiers:
+  #       - web
+  #       - api
+  #     cartesianEnabled: true
+
+  # ── Test 02: includeWhen ──────────────────────────────────────────────────
+  # Validates: single-condition, AND multi-condition, OR, cascade.
+  # RGD: krotest02-includewhen-rg.yaml  |  Kind: KroIncludeWhenTest
+
+  # kro-includewhen-minimal:
+  #   kind: KroIncludeWhenTest
+  #   namespace: kro-test-includewhen
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: includewhen-minimal
+  #     namespace: kro-test-includewhen
+  #     environment: local
+  #     featureA: true
+  #     featureB: false
+  #     featureC: false
+  #     tier: dev
+
+  # kro-includewhen-full:
+  #   kind: KroIncludeWhenTest
+  #   namespace: kro-test-includewhen-full
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: includewhen-full
+  #     namespace: kro-test-includewhen-full
+  #     environment: local
+  #     featureA: true
+  #     featureB: true
+  #     featureC: true
+  #     tier: prod
+
+  # ── Test 03: bridge-producer ──────────────────────────────────────────────
+  # Validates: KRO produces bridge Secret aggregating multiple outputs.
+  # Bridge Secret name = {spec.name}-bridge-outputs = bridge-prod-bridge-outputs
+  # RGD: krotest03-bridge-producer-rg.yaml  |  Kind: KroBridgeProducer
+
+  # kro-bridge-producer:
+  #   kind: KroBridgeProducer
+  #   namespace: kro-test-bridge
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: bridge-prod
+  #     namespace: kro-test-bridge
+  #     environment: local
+  #     vpcCIDR: "10.1.0.0/16"
+  #     subnetCount: "3"
+  #     createBridgeSecret: true
+
+  # ── Test 04: bridge-consumer ──────────────────────────────────────────────
+  # Validates: externalRef (Secret), cross-RGD data consumption.
+  # Wave 20 > producer wave 15 — bridge Secret must exist first.
+  # Namespace matches producer so externalRef can read the Secret.
+  # RGD: krotest04-bridge-consumer-rg.yaml  |  Kind: KroBridgeConsumer
+
+  # kro-bridge-consumer:
+  #   kind: KroBridgeConsumer
+  #   namespace: kro-test-bridge
+  #   syncWave: "20"
+  #   environment: local
+  #   spec:
+  #     name: bridge-consumer
+  #     namespace: kro-test-bridge
+  #     environment: local
+  #     bridgeSecretName: bridge-prod-bridge-outputs
+
+  # ── Test 05: CEL expressions ──────────────────────────────────────────────
+  # Validates: ternary, string ops (split/join/slice), math, optionals.
+  # RGD: krotest05-cel-expressions-rg.yaml  |  Kind: KroCELTest
+
+  # kro-cel-dev:
+  #   kind: KroCELTest
+  #   namespace: kro-test-cel
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: cel-dev
+  #     namespace: kro-test-cel
+  #     environment: local
+  #     fullDNSName: cel-dev.local.example.com
+  #     tagList: "env:local,team:platform,project:gen3-dev"
+  #     tier: dev
+  #     replicas: 1
+  #     optionalLabel: ""
+
+  # kro-cel-prod:
+  #   kind: KroCELTest
+  #   namespace: kro-test-cel-prod
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: cel-prod
+  #     namespace: kro-test-cel-prod
+  #     environment: local
+  #     fullDNSName: cel-prod.local.example.com
+  #     tagList: "env:local,team:platform,project:gen3-dev,tier:prod"
+  #     tier: prod
+  #     replicas: 3
+  #     optionalLabel: critical
+
+  # ── Test 06: SecurityGroup & RouteTable conditional (REAL AWS) ────────────
+  # Validates: Pattern A (multiple SGs with includeWhen).
+  # Finding: KRO cannot add entries conditionally within a single SG array.
+  # Solution: separate SG/RT resource per tier with includeWhen (Pattern A).
+  # REAL AWS resources: VPC, IGW, SecurityGroup, RouteTable — ~$0/mo.
+  # RGD: krotest06-sg-conditional-rg.yaml  |  Kind: KroTest06SgConditional
+
+  # kro-sg-base-only:
+  #   kind: KroTest06SgConditional
+  #   namespace: kro-test-sg
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: secgrp-base
+  #     namespace: kro-test-sg
+  #     environment: local
+  #     region: us-east-1
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     project: gen3-dev
+  #     vpcCidr: "10.100.0.0/16"
+  #     databaseEnabled: false
+  #     computeEnabled: false
+  #     adminEnabled: false
+  #     privateRoutingEnabled: false
+
+  # kro-sg-all-features:
+  #   kind: KroTest06SgConditional
+  #   namespace: kro-test-sg-full
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: secgrp-full
+  #     namespace: kro-test-sg-full
+  #     environment: local
+  #     region: us-east-1
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     project: gen3-dev
+  #     vpcCidr: "10.101.0.0/16"
+  #     databaseEnabled: true
+  #     computeEnabled: true
+  #     adminEnabled: true
+  #     privateRoutingEnabled: true
+
+  # ── Test 07a: cross-RGD producer (REAL AWS) ───────────────────────────────
+  # Real ACK resources: Foundation VPC + base SecurityGroup.
+  # Publishes real ACK status values (vpc_id, base_sg_id) to bridge ConfigMap.
+  # Bridge ConfigMap name = {spec.name}-crossrgd-bridge
+  # RGD: krotest07a-cross-rgd-producer-rg.yaml  |  Kind: KroTest07Producer
+
+  # kro-crossrgd-producer:
+  #   kind: KroTest07Producer
+  #   namespace: kro-test-crossrgd
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: crossrgd-prod
+  #     namespace: kro-test-crossrgd
+  #     environment: local
+  #     region: us-east-1
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     project: gen3-dev
+  #     vpcCidr: "10.102.0.0/16"
+
+  # ── Test 07b: cross-RGD consumer (REAL AWS) ───────────────────────────────
+  # Reads bridge ConfigMap via externalRef (cross-namespace read).
+  # Creates a real SecurityGroup in the producer's VPC.
+  # Wave 20 > producer wave 15. Consumer namespace ≠ producer namespace.
+  # RGD: krotest07b-cross-rgd-consumer-rg.yaml  |  Kind: KroTest07Consumer
+
+  # kro-crossrgd-consumer:
+  #   kind: KroTest07Consumer
+  #   namespace: kro-test-crossrgd-consumer
+  #   syncWave: "20"
+  #   environment: local
+  #   spec:
+  #     name: crossrgd-consumer
+  #     namespace: kro-test-crossrgd-consumer
+  #     environment: local
+  #     region: us-east-1
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     project: gen3-dev
+  #     producerBridgeName: crossrgd-prod-crossrgd-bridge
+  #     producerNamespace: kro-test-crossrgd

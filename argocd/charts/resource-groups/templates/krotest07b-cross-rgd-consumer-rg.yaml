@@ -125,7 +125,7 @@ spec:
             sg-role: consumer
         spec:
           name: ${schema.spec.name}-consumer-sg
-          description: "Consumer SG — references producer SG via userIDGroupPairs"
+          description: "Consumer SG - references producer SG via userIDGroupPairs"
           # VPC ID from real ACK status via bridge ConfigMap
           vpcID: ${bridgeData.data.vpc_id}
           ingressRules:

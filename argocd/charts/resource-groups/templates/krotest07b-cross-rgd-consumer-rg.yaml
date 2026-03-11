@@ -83,8 +83,7 @@ spec:
     #                  consumer namespace (kro-test-crossrgd-consumer)
     # ================================================================
     - id: bridgeData
-      type: externalRef
-      template:
+      externalRef:
         apiVersion: v1
         kind: ConfigMap
         metadata:

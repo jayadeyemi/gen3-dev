@@ -40,8 +40,6 @@ spec:
 
     status:
       namespacePhase: ${targetNamespace.status.phase}
-      singleForEachReady: ${simpleConfigs.metadata.?name.orValue("loading")}
-      cartesianReady: ${cartesianConfigs.metadata.?name.orValue("loading")}
 
   resources:
     # ================================================================

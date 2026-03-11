@@ -42,7 +42,7 @@ spec:
 
     status:
       bridgeSecretFound: ${bridgeOutputs.metadata.?name.orValue("not-found")}
-      consumedVpcID: ${consumerConfig.data.consumed_vpc_id}
+      consumedVpcId: ${consumerConfig.data.consumed_vpc_id}
       consumedKmsArn: ${consumerConfig.data.consumed_kms_arn}
 
   resources:
@@ -77,13 +77,13 @@ spec:
             layer: consumer
         data:
           # Data consumed from the bridge Secret
-          consumed_vpc_id: ${bridgeOutputs.data.vpc_id}
-          consumed_vpc_cidr: ${bridgeOutputs.data.vpc_cidr}
-          consumed_kms_arn: ${bridgeOutputs.data.kms_key_arn}
-          consumed_subnet_1: ${bridgeOutputs.data.private_subnet_1}
-          consumed_subnet_2: ${bridgeOutputs.data.private_subnet_2}
-          consumed_environment: ${bridgeOutputs.data.environment}
-          consumed_producer: ${bridgeOutputs.data.producer_name}
+          consumed_vpc_id: ${string(bridgeOutputs.data.vpc_id)}
+          consumed_vpc_cidr: ${string(bridgeOutputs.data.vpc_cidr)}
+          consumed_kms_arn: ${string(bridgeOutputs.data.kms_key_arn)}
+          consumed_subnet_1: ${string(bridgeOutputs.data.private_subnet_1)}
+          consumed_subnet_2: ${string(bridgeOutputs.data.private_subnet_2)}
+          consumed_environment: ${string(bridgeOutputs.data.environment)}
+          consumed_producer: ${string(bridgeOutputs.data.producer_name)}
           # Consumer's own metadata
           consumer_name: ${schema.spec.name}
           consumer_environment: ${schema.spec.environment}
@@ -106,5 +106,5 @@ spec:
             test-name: bridge-consumer-downstream
         data:
           # Uses data from consumerConfig (which came from bridge)
-          summary: "VPC ${consumerConfig.data.consumed_vpc_id} with KMS ${consumerConfig.data.consumed_kms_arn}"
+          summary: "VPC=${consumerConfig.data.consumed_vpc_id}, KMS=${consumerConfig.data.consumed_kms_arn}"
           chain: "producer → bridge-secret → consumer → downstream"

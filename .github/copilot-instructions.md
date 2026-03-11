@@ -124,6 +124,41 @@ No `endpoint_url` override — ACK controllers talk directly to real AWS APIs.
 
 Run `kind-local-test.sh inject-creds` after renewing credentials.
 
+### AWS Account ID (Runtime Injection)
+The AWS account ID is **never stored in git**. It is resolved at runtime via
+`aws sts get-caller-identity` and injected into the **ArgoCD cluster Secret**
+as the `aws_account_id` annotation (during both `install` and `inject-creds`
+stages). ArgoCD propagates the value through the bootstrap chain:
+1. **ArgoCD cluster Secret** — `aws_account_id` annotation
+2. **ApplicationSet cluster generator** — exposes the annotation as a template variable
+3. **Instances Helm chart** — receives it as a `helm.parameters` value (`awsAccountId`)
+4. **Namespace annotation** — the chart applies `services.k8s.aws/owner-account-id`
+
+RGDs read the account ID from the namespace annotation via:
+```yaml
+${spokeNamespace.metadata.annotations['services.k8s.aws/owner-account-id']}
+```
+
+## Security — Never Commit Secrets
+
+**NEVER** commit the following to git:
+- AWS Account IDs (12-digit numbers)
+- AWS Access Key IDs (`AKIA...`)
+- AWS Secret Access Keys
+- Session tokens, passwords, API keys
+- Private keys or certificates
+- Any ARNs containing account IDs
+
+Instead, use these patterns:
+- **Runtime injection** — resolve via AWS CLI and inject as K8s annotations/Secrets
+- **Gitignored files** — use `config/local.env` (already gitignored)
+- **Placeholder values** — use `123456789012` for example account IDs in docs/plans
+- **ExternalSecrets** — pull secrets from AWS Secrets Manager at runtime
+
+The `.gitignore` covers: `*.ppk`, `*.pem`, `**/secrets/*`, `**/secrets.yaml`,
+`**/variables.env`, `**/outputs/*`, `config/local.env`, `credentials`,
+`*.credentials`, `.aws/`.
+
 ## ResourceGraphDefinitions (RGDs)
 
 All RGDs use versioned naming: `AwsGen3<Component><Version>Flat`.
@@ -155,7 +190,8 @@ When creating new plans, follow the numbered prefix convention:
 | File | Purpose |
 |------|---------|
 | `01-gen3-infrastructure-component-map.md` | Maps all Gen3 services, AWS infrastructure components, dependencies, and cost drivers |
-| `02-modular-rgd-design.md` | Defines the 6-tier modular RGD architecture (Foundation → Database → Search → Compute → AppIAM → Advanced) |
+| `02-modular-rgd-design.md` | Defines the 7-tier modular RGD architecture (Foundation → Database → Search → Compute → AppIAM → Advanced → Monitoring) |
+| `03-kro-capability-test-report.md` | Test report for KRO capability validation (forEach, includeWhen, bridge Secret, CEL) |
 
 Consult these files before creating or modifying RGDs to ensure alignment
 with the planned modular architecture.

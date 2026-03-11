@@ -420,11 +420,13 @@ YAML
     fi
   done
 
-  # ── Inject AWS Account ID into instance namespaces ──────────────────
-  # RGDs read the account ID from namespace annotations (not from git).
-  # This dynamically annotates all instance namespaces with the resolved
-  # AWS account ID from STS.
-  log_banner "Injecting AWS Account ID into instance namespaces"
+  # ── Update AWS Account ID on ArgoCD cluster Secret ───────────────────
+  # The install stage sets aws_account_id on the cluster Secret initially.
+  # On credential renewal the STS identity may differ, so we update the
+  # annotation here. ArgoCD's ApplicationSet cluster generator reads it
+  # and passes it to the instances chart, which annotates namespaces with
+  # services.k8s.aws/owner-account-id — no direct kubectl annotate needed.
+  log_banner "Updating AWS Account ID on ArgoCD cluster Secret"
   local aws_account_id
   aws_account_id="$(aws sts get-caller-identity --profile "${profile}" --output text --query 'Account' 2>/dev/null || true)"
   if [[ -z "${aws_account_id}" ]]; then
@@ -433,22 +435,13 @@ YAML
   fi
 
   log_info "AWS Account ID: ${aws_account_id}"
-  # Annotate all namespaces that have instances-chart label
-  local ns_list
-  ns_list="$(kubectl get namespaces -l app.kubernetes.io/managed-by=instances-chart \
-    --context "$KIND_CONTEXT" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)"
-
-  if [[ -z "${ns_list}" ]]; then
-    log_warn "No instance namespaces found yet — account ID will be injected on next run"
-  else
-    for ns in ${ns_list}; do
-      kubectl annotate namespace "${ns}" \
-        "services.k8s.aws/owner-account-id=${aws_account_id}" \
-        --overwrite --context "$KIND_CONTEXT" 2>/dev/null && \
-        log_success "Account ID annotated on namespace ${ns}" || \
-        log_warn "Could not annotate namespace ${ns}"
-    done
-  fi
+  kubectl annotate secret local \
+    -n "${ARGOCD_NAMESPACE}" \
+    --context "${KIND_CONTEXT}" \
+    "aws_account_id=${aws_account_id}" \
+    --overwrite 2>/dev/null && \
+    log_success "ArgoCD cluster Secret updated with account ID" || \
+    log_warn "Could not update ArgoCD cluster Secret — install stage may not have run yet"
 }
 
 ###############################################################################

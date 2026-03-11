@@ -1,0 +1,113 @@
+# KRO Capability Test 1: forEach
+#
+# Tests KRO's forEach feature for creating multiple resources
+# from array inputs. Uses K8s-native ConfigMaps (no AWS cost).
+#
+# Validates:
+#   - Single-dimension forEach (N items → N ConfigMaps)
+#   - Cartesian product forEach (N×M items)
+#   - forEach combined with includeWhen
+#   - Status reporting from forEach collections
+#
+# Usage:
+#   kubectl apply -f tests/local/kro-capability-tests/01-foreach-rg.yaml
+#   kubectl apply -f tests/local/kro-capability-tests/instances/01-foreach-instance.yaml
+#   kubectl get kroforeachtest -w
+
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: kro-foreach-test
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: KroForEachTest
+    spec:
+      name: string | required=true
+      namespace: string | default="kro-test"
+      environment: string | default="test"
+
+      # forEach inputs
+      values: "[]string | required=true"
+      regions: "[]string | default=['us-east-1']"
+      tiers: "[]string | default=['web']"
+
+      # Conditional forEach
+      cartesianEnabled: boolean | default=false
+
+    status:
+      namespacePhase: ${targetNamespace.status.phase}
+      singleForEachReady: ${simpleConfigs.metadata.?name.orValue("loading")}
+      cartesianReady: ${cartesianConfigs.metadata.?name.orValue("loading")}
+
+  resources:
+    # ================================================================
+    # Layer 0: Namespace
+    # ================================================================
+    - id: targetNamespace
+      readyWhen:
+        - ${targetNamespace.status.phase == "Active"}
+      template:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: ${schema.spec.namespace}
+          labels:
+            app.kubernetes.io/managed-by: kro
+            test-suite: kro-capabilities
+            test-name: foreach
+
+    # ================================================================
+    # Layer 1: Single-dimension forEach
+    # Creates one ConfigMap per value in the values array
+    # ================================================================
+    - id: simpleConfigs
+      forEach:
+        - value: ${schema.spec.values}
+      readyWhen:
+        - ${each.metadata.?name.orValue('null') != 'null'}
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: ${schema.spec.name}-single-${value}
+          namespace: ${targetNamespace.metadata.name}
+          labels:
+            test-suite: kro-capabilities
+            test-name: foreach-single
+            test-value: ${value}
+        data:
+          value: ${value}
+          source: "forEach single-dimension"
+          environment: ${schema.spec.environment}
+
+    # ================================================================
+    # Layer 2: Cartesian product forEach (conditional)
+    # Creates one ConfigMap per (region, tier) pair
+    # ================================================================
+    - id: cartesianConfigs
+      includeWhen:
+        - ${schema.spec.cartesianEnabled == true}
+      forEach:
+        - region: ${schema.spec.regions}
+        - tier: ${schema.spec.tiers}
+      readyWhen:
+        - ${each.metadata.?name.orValue('null') != 'null'}
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: ${schema.spec.name}-cart-${region}-${tier}
+          namespace: ${targetNamespace.metadata.name}
+          labels:
+            test-suite: kro-capabilities
+            test-name: foreach-cartesian
+            test-region: ${region}
+            test-tier: ${tier}
+        data:
+          region: ${region}
+          tier: ${tier}
+          source: "forEach cartesian product"

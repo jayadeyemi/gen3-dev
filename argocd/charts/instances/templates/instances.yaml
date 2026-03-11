@@ -1,15 +1,21 @@
 {{- range $name, $instance := .Values.instances }}
 {{- if $instance.namespace }}
 ---
-# Namespace is created here; the owner-account-id annotation is injected
-# at runtime by kind-local-test.sh (inject-creds stage) via kubectl annotate.
-# This avoids storing the AWS account ID in git.
+# Namespace for KRO instance. The owner-account-id annotation is injected
+# via ArgoCD: kind-local-test.sh sets aws_account_id on the ArgoCD cluster
+# Secret, the ApplicationSet passes it as a Helm parameter, and this
+# template applies it to the namespace. This avoids storing the AWS
+# account ID in git.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ $instance.namespace | default "default" }}
   labels:
     app.kubernetes.io/managed-by: instances-chart
+  {{- if $.Values.awsAccountId }}
+  annotations:
+    services.k8s.aws/owner-account-id: {{ $.Values.awsAccountId | quote }}
+  {{- end }}
 {{- end }}
 ---
 apiVersion: kro.run/v1alpha1

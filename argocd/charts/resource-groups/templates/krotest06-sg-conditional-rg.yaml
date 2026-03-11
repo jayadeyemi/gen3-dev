@@ -274,7 +274,7 @@ spec:
             sg-tier: base
         spec:
           name: ${schema.spec.name}-base-sg
-          description: "Base SG — SSH and health checks, always present"
+          description: "Base SG - SSH and health checks, always present"
           vpcID: ${testVpc.status.?vpcID}
           ingressRules:
             - ipProtocol: tcp
@@ -331,7 +331,7 @@ spec:
             sg-tier: database
         spec:
           name: ${schema.spec.name}-database-sg
-          description: "Database SG — MySQL and PostgreSQL from VPC only"
+          description: "Database SG - MySQL and PostgreSQL from VPC only"
           vpcID: ${testVpc.status.?vpcID}
           ingressRules:
             - ipProtocol: tcp
@@ -384,7 +384,7 @@ spec:
             sg-tier: compute
         spec:
           name: ${schema.spec.name}-compute-sg
-          description: "Compute SG — API and gRPC from VPC internal"
+          description: "Compute SG - API and gRPC from VPC internal"
           vpcID: ${testVpc.status.?vpcID}
           ingressRules:
             - ipProtocol: tcp
@@ -440,7 +440,7 @@ spec:
             sg-tier: admin
         spec:
           name: ${schema.spec.name}-admin-sg
-          description: "Admin SG — management access: adminEnabled AND (db OR compute)"
+          description: "Admin SG - management access: adminEnabled AND (db OR compute)"
           vpcID: ${testVpc.status.?vpcID}
           ingressRules:
             - ipProtocol: tcp

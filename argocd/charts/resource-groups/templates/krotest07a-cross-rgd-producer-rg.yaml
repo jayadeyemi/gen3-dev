@@ -131,7 +131,7 @@ spec:
             sg-role: foundation
         spec:
           name: ${schema.spec.name}-foundation-sg
-          description: "Foundation SG — base rules, ID shared via bridge ConfigMap"
+          description: "Foundation SG - base rules, ID shared via bridge ConfigMap"
           vpcID: ${foundationVpc.status.?vpcID}
           ingressRules:
             - ipProtocol: tcp

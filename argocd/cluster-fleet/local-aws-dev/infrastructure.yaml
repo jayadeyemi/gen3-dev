@@ -215,7 +215,7 @@ instances:
     syncWave: "15"
     environment: local
     spec:
-      name: sg-base
+      name: secgrp-base
       namespace: kro-test-sg
       environment: local
       region: us-east-1
@@ -234,7 +234,7 @@ instances:
     syncWave: "15"
     environment: local
     spec:
-      name: sg-full
+      name: secgrp-full
       namespace: kro-test-sg-full
       environment: local
       region: us-east-1

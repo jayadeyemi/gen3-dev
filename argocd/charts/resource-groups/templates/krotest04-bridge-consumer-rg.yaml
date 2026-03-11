@@ -47,13 +47,13 @@ spec:
 
   resources:
     # ================================================================
-    # Layer 0: externalRef — read the bridge Secret from producer
-    # This is the cross-RGD pattern: externalRef + Secret
+    # Layer 0: externalRef — read the bridge ConfigMap from producer
+    # Uses ConfigMap (not Secret) to avoid bytes/string type mismatch.
     # ================================================================
     - id: bridgeOutputs
       externalRef:
         apiVersion: v1
-        kind: Secret
+        kind: ConfigMap
         metadata:
           name: ${schema.spec.bridgeSecretName}
           namespace: ${schema.spec.namespace}
@@ -76,14 +76,14 @@ spec:
             test-name: bridge-consumer
             layer: consumer
         data:
-          # Data consumed from the bridge Secret
-          consumed_vpc_id: ${string(bridgeOutputs.data.vpc_id)}
-          consumed_vpc_cidr: ${string(bridgeOutputs.data.vpc_cidr)}
-          consumed_kms_arn: ${string(bridgeOutputs.data.kms_key_arn)}
-          consumed_subnet_1: ${string(bridgeOutputs.data.private_subnet_1)}
-          consumed_subnet_2: ${string(bridgeOutputs.data.private_subnet_2)}
-          consumed_environment: ${string(bridgeOutputs.data.environment)}
-          consumed_producer: ${string(bridgeOutputs.data.producer_name)}
+          # Data consumed from the bridge ConfigMap
+          consumed_vpc_id: ${bridgeOutputs.data.vpc_id}
+          consumed_vpc_cidr: ${bridgeOutputs.data.vpc_cidr}
+          consumed_kms_arn: ${bridgeOutputs.data.kms_key_arn}
+          consumed_subnet_1: ${bridgeOutputs.data.private_subnet_1}
+          consumed_subnet_2: ${bridgeOutputs.data.private_subnet_2}
+          consumed_environment: ${bridgeOutputs.data.environment}
+          consumed_producer: ${bridgeOutputs.data.producer_name}
           # Consumer's own metadata
           consumer_name: ${schema.spec.name}
           consumer_environment: ${schema.spec.environment}

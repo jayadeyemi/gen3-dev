@@ -107,8 +107,9 @@ spec:
           s3_data_bucket: ${schema.spec.name}-data
 
     # ================================================================
-    # Layer 2: Bridge Secret — aggregates outputs from Layer 1
-    # This is the pattern used in gen3-kro's infraOutputsSecret
+    # Layer 2: Bridge ConfigMap — aggregates outputs from Layer 1
+    # Uses ConfigMap (not Secret) to avoid Secret bytes/string type
+    # mismatch in KRO CEL expressions (discovered in this test).
     # ================================================================
     - id: bridgeSecret
       includeWhen:
@@ -117,7 +118,7 @@ spec:
         - ${bridgeSecret.metadata.?name.orValue('null') != 'null'}
       template:
         apiVersion: v1
-        kind: Secret
+        kind: ConfigMap
         metadata:
           name: ${schema.spec.name}-bridge-outputs
           namespace: ${targetNamespace.metadata.name}
@@ -127,7 +128,7 @@ spec:
             layer: bridge
             gen3.io/tier: foundation
             gen3.io/outputs: "true"
-        stringData:
+        data:
           # Network outputs (from networkConfig)
           vpc_id: ${networkConfig.data.vpc_id}
           vpc_cidr: ${networkConfig.data.vpc_cidr}

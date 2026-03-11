@@ -1,5 +1,9 @@
+{{- /* Collect unique namespaces first to avoid duplicates when multiple
+       instances share the same namespace (e.g., bridge producer + consumer). */ -}}
+{{- $seen_ns := dict }}
 {{- range $name, $instance := .Values.instances }}
-{{- if $instance.namespace }}
+{{- if and $instance.namespace (not (hasKey $seen_ns $instance.namespace)) }}
+{{- $_ := set $seen_ns $instance.namespace true }}
 ---
 # Namespace for KRO instance. The owner-account-id annotation is injected
 # via ArgoCD: kind-local-test.sh sets aws_account_id on the ArgoCD cluster
@@ -9,7 +13,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ $instance.namespace | default "default" }}
+  name: {{ $instance.namespace }}
   labels:
     app.kubernetes.io/managed-by: instances-chart
   {{- if $.Values.awsAccountId }}
@@ -17,6 +21,8 @@ metadata:
     services.k8s.aws/owner-account-id: {{ $.Values.awsAccountId | quote }}
   {{- end }}
 {{- end }}
+{{- end }}
+{{- range $name, $instance := .Values.instances }}
 ---
 apiVersion: kro.run/v1alpha1
 kind: {{ $instance.kind | required "instance kind is required" }}

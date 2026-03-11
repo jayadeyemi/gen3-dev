@@ -32,8 +32,8 @@ spec:
 
       # forEach inputs
       values: "[]string | required=true"
-      regions: "[]string | default=['us-east-1']"
-      tiers: "[]string | default=['web']"
+      regions: '[]string | default=["us-east-1"]'
+      tiers: '[]string | default=["web"]'
 
       # Conditional forEach
       cartesianEnabled: boolean | default=false

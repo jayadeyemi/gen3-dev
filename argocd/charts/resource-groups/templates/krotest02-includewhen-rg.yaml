@@ -39,6 +39,9 @@ spec:
       # For OR logic test
       tier: string | default="dev"
 
+      # Schema change test — new field with default
+      teamLabel: string | default="platform"
+
     status:
       namespacePhase: ${targetNamespace.status.phase}
       featureAConfig: ${featureAConfig.metadata.?name.orValue("excluded")}
@@ -46,6 +49,7 @@ spec:
       featureABConfig: ${featureABConfig.metadata.?name.orValue("excluded")}
       tierConfig: ${tierConfig.metadata.?name.orValue("excluded")}
       cascadeChild: ${cascadeChild.metadata.?name.orValue("excluded")}
+      teamConfig: ${teamConfig.metadata.?name.orValue("excluded")}
 
   resources:
     # ================================================================
@@ -63,6 +67,25 @@ spec:
             app.kubernetes.io/managed-by: kro
             test-suite: kro-capabilities
             test-name: includewhen
+
+    # ================================================================
+    # Layer 0.5: Team label resource (uses new schema field — TEST)
+    # ================================================================
+    - id: teamConfig
+      readyWhen:
+        - ${teamConfig.metadata.?name.orValue('null') != 'null'}
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: ${schema.spec.name}-team-config
+          namespace: ${targetNamespace.metadata.name}
+          labels:
+            test-suite: kro-capabilities
+            test-name: includewhen-schema-change
+        data:
+          team: ${schema.spec.teamLabel}
+          note: "Uses new schema field teamLabel"
 
     # ================================================================
     # Layer 1: Single-condition includeWhen (boolean flag)

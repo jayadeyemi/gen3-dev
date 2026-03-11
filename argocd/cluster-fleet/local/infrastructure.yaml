@@ -8,6 +8,7 @@ instances:
   gen3-dev-test:
     kind: AwsGen3Test1Flat
     namespace: gen3-dev-test
+    accountID: "REDACTED_AWS_ACCOUNT_ID"
     syncWave: "1"
     environment: local
     spec:

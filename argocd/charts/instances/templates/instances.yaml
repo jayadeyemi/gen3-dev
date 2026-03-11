@@ -1,4 +1,15 @@
 {{- range $name, $instance := .Values.instances }}
+{{- if $instance.accountID }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $instance.namespace | default "default" }}
+  annotations:
+    services.k8s.aws/owner-account-id: {{ $instance.accountID | quote }}
+  labels:
+    app.kubernetes.io/managed-by: instances-chart
+{{- end }}
 ---
 apiVersion: kro.run/v1alpha1
 kind: {{ $instance.kind | required "instance kind is required" }}

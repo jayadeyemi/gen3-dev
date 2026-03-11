@@ -59,18 +59,16 @@ gen3-dev/
 │   │   ├── application-sets/  # Meta-chart: creates per-addon ApplicationSets
 │   │   ├── instances/         # Renders KRO Custom Resources from values
 │   │   └── resource-groups/
-│   │       └── templates/     # RGD YAML files (4 graphs)
+│       └── templates/     # RGD YAML files (4 production + 7 capability test RGDs)
 │   └── cluster-fleet/
-│       └── local/       # Per-cluster overrides + instance values
+│       └── local/       # Per-cluster overrides + instance values (infrastructure.yaml)
 ├── config/              # Generated local.env (gitignored)
 ├── outputs/
 │   └── plans/           # Architecture plans & RGD design docs
-├── scripts/             # Kind orchestration scripts
-│   ├── kind-config.yaml
-│   ├── kind-local-test.sh
-│   └── lib-logging.sh
-└── tests/local/         # Test instances + validation
-    └── validate-rgd.sh
+└── scripts/             # Kind orchestration scripts
+    ├── kind-config.yaml
+    ├── kind-local-test.sh
+    └── lib-logging.sh
 ```
 
 ## Coding Conventions
@@ -173,6 +171,31 @@ All RGDs use versioned naming: `AwsGen3<Component><Version>Flat`.
 Only the **test graph** (AwsGen3Test1Flat) is instantiated. The other RGDs are
 registered as CRDs but not deployed as instances.
 
+## KRO Capability Tests
+
+All KRO feature-validation tests live in `argocd/charts/resource-groups/templates/`
+and are ArgoCD-managed — no manual `kubectl apply`. Instances are declared in
+`argocd/cluster-fleet/local/infrastructure.yaml`.
+
+| # | Kind | RGD file | Instance key(s) | Resources | AWS? |
+|---|------|----------|-----------------|-----------|------|
+| 1 | `KroForEachTest` | `krotest01-foreach-rg.yaml` | `kro-foreach-basic`, `kro-foreach-cartesian` | ConfigMaps | No |
+| 2 | `KroIncludeWhenTest` | `krotest02-includewhen-rg.yaml` | `kro-includewhen-minimal`, `kro-includewhen-full` | ConfigMaps | No |
+| 3 | `KroBridgeProducer` | `krotest03-bridge-producer-rg.yaml` | `kro-bridge-producer` | ConfigMaps + Secret | No |
+| 4 | `KroBridgeConsumer` | `krotest04-bridge-consumer-rg.yaml` | `kro-bridge-consumer` | ConfigMaps | No |
+| 5 | `KroCELTest` | `krotest05-cel-expressions-rg.yaml` | `kro-cel-dev`, `kro-cel-prod` | ConfigMaps | No |
+| 6 | `KroTest06SgConditional` | `krotest06-sg-conditional-rg.yaml` | `kro-sg-base-only`, `kro-sg-all-features` | ACK EC2 | Yes |
+| 7a | `KroTest07Producer` | `krotest07a-cross-rgd-producer-rg.yaml` | `kro-crossrgd-producer` | ACK EC2 | Yes |
+| 7b | `KroTest07Consumer` | `krotest07b-cross-rgd-consumer-rg.yaml` | `kro-crossrgd-consumer` | ACK EC2 | Yes |
+
+**Key finding (Test 6)**: KRO cannot add conditional entries within a single
+`SecurityGroup.spec.ingressRules` or `RouteTable.spec.routes` array. Use
+**Pattern A** — multiple separate SG/RT resources with `includeWhen` — one per tier.
+
+**Key finding (Test 7)**: Cross-RGD status values flow via bridge ConfigMap +
+`externalRef`. Real AWS SG-to-SG rules use `spec.ingressRules[].userIDGroupPairs[].groupID`
+set to `sg.status.id` read from the bridge.
+
 ## Relationship to gen3-kro
 
 When creating or modifying resources, keep parity with gen3-kro:
@@ -191,7 +214,8 @@ When creating new plans, follow the numbered prefix convention:
 |------|---------|
 | `01-gen3-infrastructure-component-map.md` | Maps all Gen3 services, AWS infrastructure components, dependencies, and cost drivers |
 | `02-modular-rgd-design.md` | Defines the 7-tier modular RGD architecture (Foundation → Database → Search → Compute → AppIAM → Advanced → Monitoring) |
-| `03-kro-capability-test-report.md` | Test report for KRO capability validation (forEach, includeWhen, bridge Secret, CEL) |
+| `03-kro-capability-test-report.md` | Test report for KRO capability validation (forEach, includeWhen, bridge Secret, CEL, SG/RT conditional, cross-RGD status) |
+| `04-modular-sg-routetable-design.md` | Patterns A–D analysis for SG/RT conditional entries; recommended Pattern A (multi-resource + includeWhen) for gen3-kro |
 
 Consult these files before creating or modifying RGDs to ensure alignment
 with the planned modular architecture.

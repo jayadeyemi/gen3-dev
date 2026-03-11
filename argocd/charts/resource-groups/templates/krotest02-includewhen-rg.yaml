@@ -11,8 +11,8 @@
 #   - Status reporting when resources are excluded
 #
 # Usage:
-#   kubectl apply -f tests/local/kro-capability-tests/02-includewhen-rg.yaml
-#   kubectl apply -f tests/local/kro-capability-tests/instances/02-includewhen-instance.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/02-includewhen-rg.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/instances/02-includewhen-instance.yaml
 #   kubectl get kroincludewhentest -w
 
 apiVersion: kro.run/v1alpha1

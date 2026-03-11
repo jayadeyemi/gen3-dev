@@ -11,8 +11,8 @@
 #   - Secret contains correct data for downstream consumption
 #
 # Usage:
-#   kubectl apply -f tests/local/kro-capability-tests/03-bridge-producer-rg.yaml
-#   kubectl apply -f tests/local/kro-capability-tests/instances/03-bridge-producer-instance.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/03-bridge-producer-rg.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/instances/03-bridge-producer-instance.yaml
 #   kubectl get krobridgeproducer -w
 #   kubectl get secret <name>-bridge-outputs -o yaml
 

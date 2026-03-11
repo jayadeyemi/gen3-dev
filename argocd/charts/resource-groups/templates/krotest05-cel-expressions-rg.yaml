@@ -12,8 +12,8 @@
 #   - String concatenation and formatting
 #
 # Usage:
-#   kubectl apply -f tests/local/kro-capability-tests/05-cel-expressions-rg.yaml
-#   kubectl apply -f tests/local/kro-capability-tests/instances/05-cel-expressions-instance.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/05-cel-expressions-rg.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/instances/05-cel-expressions-instance.yaml
 #   kubectl get kroceltest -w
 
 apiVersion: kro.run/v1alpha1

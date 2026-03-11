@@ -10,8 +10,8 @@
 #   - Status reporting from forEach collections
 #
 # Usage:
-#   kubectl apply -f tests/local/kro-capability-tests/01-foreach-rg.yaml
-#   kubectl apply -f tests/local/kro-capability-tests/instances/01-foreach-instance.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/01-foreach-rg.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/instances/01-foreach-instance.yaml
 #   kubectl get kroforeachtest -w
 
 apiVersion: kro.run/v1alpha1

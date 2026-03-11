@@ -14,11 +14,11 @@
 #
 # Usage:
 #   # First deploy the producer:
-#   kubectl apply -f tests/local/kro-capability-tests/03-bridge-producer-rg.yaml
-#   kubectl apply -f tests/local/kro-capability-tests/instances/03-bridge-producer-instance.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/03-bridge-producer-rg.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/instances/03-bridge-producer-instance.yaml
 #   # Then deploy the consumer:
-#   kubectl apply -f tests/local/kro-capability-tests/04-bridge-consumer-rg.yaml
-#   kubectl apply -f tests/local/kro-capability-tests/instances/04-bridge-consumer-instance.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/04-bridge-consumer-rg.yaml
+#   kubectl apply -f argocd/charts/resource-groups/templates/instances/04-bridge-consumer-instance.yaml
 #   kubectl get krobridgeconsumer -w
 
 apiVersion: kro.run/v1alpha1

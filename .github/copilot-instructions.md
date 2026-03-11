@@ -63,6 +63,8 @@ gen3-dev/
 │   └── cluster-fleet/
 │       └── local/       # Per-cluster overrides + instance values
 ├── config/              # Generated local.env (gitignored)
+├── outputs/
+│   └── plans/           # Architecture plans & RGD design docs
 ├── scripts/             # Kind orchestration scripts
 │   ├── kind-config.yaml
 │   ├── kind-local-test.sh
@@ -144,3 +146,16 @@ When creating or modifying resources, keep parity with gen3-kro:
 - Same sync-wave ordering
 - Same KRO schema conventions (field types, status propagation, readyWhen/includeWhen)
 - Simplified: no IRSA, no multi-account trust, no Terraform layer
+
+## Architecture Plans (`outputs/plans/`)
+
+All architecture plans and RGD design documents live in `outputs/plans/`.
+When creating new plans, follow the numbered prefix convention:
+
+| File | Purpose |
+|------|---------|
+| `01-gen3-infrastructure-component-map.md` | Maps all Gen3 services, AWS infrastructure components, dependencies, and cost drivers |
+| `02-modular-rgd-design.md` | Defines the 6-tier modular RGD architecture (Foundation → Database → Search → Compute → AppIAM → Advanced) |
+
+Consult these files before creating or modifying RGDs to ensure alignment
+with the planned modular architecture.

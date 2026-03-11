@@ -1,12 +1,13 @@
 {{- range $name, $instance := .Values.instances }}
-{{- if $instance.accountID }}
+{{- if $instance.namespace }}
 ---
+# Namespace is created here; the owner-account-id annotation is injected
+# at runtime by kind-local-test.sh (inject-creds stage) via kubectl annotate.
+# This avoids storing the AWS account ID in git.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ $instance.namespace | default "default" }}
-  annotations:
-    services.k8s.aws/owner-account-id: {{ $instance.accountID | quote }}
   labels:
     app.kubernetes.io/managed-by: instances-chart
 {{- end }}

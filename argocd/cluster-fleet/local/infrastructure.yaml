@@ -4,11 +4,14 @@
 #
 # Only the test graph is instantiated. The full infra1flat, baseflat,
 # and networkflat RGDs are registered as CRDs but not instantiated.
+#
+# NOTE: accountID is NOT stored here. It is injected at runtime by
+# kind-local-test.sh (inject-creds stage) via aws sts get-caller-identity
+# and applied as a namespace annotation: services.k8s.aws/owner-account-id
 instances:
   gen3-dev-test:
     kind: AwsGen3Test1Flat
     namespace: gen3-dev-test
-    accountID: "REDACTED_AWS_ACCOUNT_ID"
     syncWave: "1"
     environment: local
     spec:

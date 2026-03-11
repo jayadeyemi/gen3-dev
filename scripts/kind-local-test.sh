@@ -419,6 +419,36 @@ YAML
       log_warn "ACK ${svc} deployment not found (may not be installed yet)"
     fi
   done
+
+  # ── Inject AWS Account ID into instance namespaces ──────────────────
+  # RGDs read the account ID from namespace annotations (not from git).
+  # This dynamically annotates all instance namespaces with the resolved
+  # AWS account ID from STS.
+  log_banner "Injecting AWS Account ID into instance namespaces"
+  local aws_account_id
+  aws_account_id="$(aws sts get-caller-identity --profile "${profile}" --output text --query 'Account' 2>/dev/null || true)"
+  if [[ -z "${aws_account_id}" ]]; then
+    log_error "Could not resolve AWS Account ID — RGDs will fail without it"
+    return 1
+  fi
+
+  log_info "AWS Account ID: ${aws_account_id}"
+  # Annotate all namespaces that have instances-chart label
+  local ns_list
+  ns_list="$(kubectl get namespaces -l app.kubernetes.io/managed-by=instances-chart \
+    --context "$KIND_CONTEXT" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)"
+
+  if [[ -z "${ns_list}" ]]; then
+    log_warn "No instance namespaces found yet — account ID will be injected on next run"
+  else
+    for ns in ${ns_list}; do
+      kubectl annotate namespace "${ns}" \
+        "services.k8s.aws/owner-account-id=${aws_account_id}" \
+        --overwrite --context "$KIND_CONTEXT" 2>/dev/null && \
+        log_success "Account ID annotated on namespace ${ns}" || \
+        log_warn "Could not annotate namespace ${ns}"
+    done
+  fi
 }
 
 ###############################################################################
@@ -465,6 +495,16 @@ stage_install() {
 
   # ── ArgoCD Cluster Secret (enables cluster generator matching) ────────
   log_banner "Creating ArgoCD Cluster Secret"
+
+  # Fetch AWS account ID at runtime (never stored in git)
+  local aws_account_id
+  aws_account_id="$(aws sts get-caller-identity --profile "${AWS_PROFILE:-csoc}" --output text --query 'Account' 2>/dev/null || true)"
+  if [[ -z "${aws_account_id}" ]]; then
+    log_warn "Could not determine AWS account ID — cluster secret will lack aws_account_id annotation"
+  else
+    log_success "AWS Account ID resolved at runtime: ${aws_account_id}"
+  fi
+
   kubectl apply --context "$KIND_CONTEXT" -f - <<CLUSTERSECRET
 apiVersion: v1
 kind: Secret
@@ -480,6 +520,7 @@ metadata:
     addons_repo_revision: "${GIT_REPO_REVISION}"
     addons_repo_basepath: "${GIT_REPO_BASEPATH}"
     aws_region: "us-east-1"
+    aws_account_id: "${aws_account_id}"
 type: Opaque
 stringData:
   name: local

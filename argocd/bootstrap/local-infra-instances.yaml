@@ -60,3 +60,9 @@ spec:
           - CreateNamespace=true
           - ServerSideApply=true
           - SkipDryRunOnMissingResource=true
+      ignoreDifferences:
+        - kind: Namespace
+          jsonPointers:
+            - /metadata/labels
+            - /metadata/annotations
+            - /metadata/finalizers

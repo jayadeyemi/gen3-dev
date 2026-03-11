@@ -380,8 +380,8 @@ spec:
           storageEncrypted: true
           kmsKeyID: ${databaseKey.status.?ackResourceMetadata.?arn}
           serverlessV2ScalingConfiguration:
-            minCapacity: 0.5
-            maxCapacity: 4
+            minCapacity: ${schema.spec.auroraMinCapacity}
+            maxCapacity: ${schema.spec.auroraMaxCapacity}
           backupRetentionPeriod: 7
           tags:
             - key: Name

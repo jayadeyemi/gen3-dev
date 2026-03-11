@@ -134,6 +134,50 @@ When adapting resources from gen3-kro's AwsGen3Infra1Flat:
 4. Keep the same KMS key policies and IAM trust relationships
 5. Simplify: remove cross-account trust (not needed for local)
 
+## RGD Update Behavior (Test-Verified)
+
+### Non-Breaking Changes (fully automatic)
+
+Adding resources, adding schema fields with defaults, modifying templates,
+or removing resources are all non-breaking. KRO reconciles all instances
+automatically (~15s after ArgoCD syncs). No manual intervention needed.
+
+Default values propagate instantly to existing instances without instance
+YAML changes.
+
+### Breaking Changes (blocked by KRO)
+
+Removing or renaming schema spec/status fields triggers:
+`cannot update CRD: breaking changes detected: Property X was removed`
+
+The RGD goes **Inactive**. Instances continue running but their finalizer
+(`kro.run/finalizer`) blocks deletion.
+
+**Recovery:** patch finalizers → delete instances → delete CRD → KRO
+recreates CRD (~10s) → ArgoCD re-syncs instances.
+
+**Best practice:** Never remove fields. Version the RGD (v2) instead.
+
+### Template-Level Limitations
+
+KRO templates are static YAML + CEL value substitution only. It is **not
+possible** to conditionally add entries within a single array (like
+`SecurityGroup.spec.ingressRules`). Use **Pattern A** — separate resources
+with `includeWhen` — for conditional entries.
+
+## ACK Field Patterns (Test-Verified)
+
+```yaml
+# VPC: status.vpcID, status.state == "available"
+# IGW: spec.vpcRef.from.name (K8s name ref, NOT vpcID), status.internetGatewayID
+# RouteTable: spec.vpcID, spec.routes[].gatewayID/natGatewayID
+# SecurityGroup: status.id (NOT status.groupID)
+# SG-to-SG rules: spec.ingressRules[].userIDGroupPairs[].groupID = sg.status.id
+# Subnet: status.subnetID, status.state == "available"
+# EKS Cluster: status.status == "ACTIVE"
+# Aurora: status.status == "available", status.endpoint, status.readerEndpoint
+```
+
 ## ArgoCD Annotations
 
 Every RGD should include:

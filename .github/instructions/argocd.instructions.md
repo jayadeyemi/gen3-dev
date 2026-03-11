@@ -70,3 +70,16 @@ If a new ACK controller is needed:
 3. Set `aws.region` (no endpoint_url)
 4. Update the ACK controller table in `.github/copilot-instructions.md`
 5. Document in `argocd/addons/local/addons.yaml`
+
+## ArgoCD Auto-Sync Configuration (Test-Verified)
+
+| App | Auto-Sync | Prune | Self-Heal | Effect |
+|-----|-----------|-------|-----------|--------|
+| `kro-local-rgs-*` (RGDs) | Yes | Yes | Yes | RGD changes auto-sync + self-repair drift |
+| `*-infra-instance` (instances) | Yes | Yes | No | Instance YAML changes sync, but no self-heal |
+
+RGD changes flow fully automatically:
+`git push` → ArgoCD detects (~3min poll or hard-refresh) → syncs RGD →
+KRO reconciles all instances (~15s) → resources created/updated/deleted.
+
+No manual `kubectl apply` or `argocd app sync` needed for non-breaking changes.

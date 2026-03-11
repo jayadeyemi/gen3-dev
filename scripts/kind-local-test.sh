@@ -401,7 +401,7 @@ YAML
   for svc in "${!ACK_CONTROLLERS[@]}"; do
     local deploy
     # Try common deployment name patterns
-    for pattern in "ack-${svc}-${svc}-chart" "ack-${svc}-controller"; do
+    for pattern in "${svc}-chart" "ack-${svc}-${svc}-chart" "ack-${svc}-controller"; do
       if kubectl get deployment "$pattern" -n "$ACK_NAMESPACE" --context "$KIND_CONTEXT" &>/dev/null; then
         deploy="$pattern"
         break
@@ -492,6 +492,30 @@ stringData:
     }
 CLUSTERSECRET
   log_success "ArgoCD cluster Secret 'local' created (fleet_member=control-plane)"
+
+  # ── OCI Helm Repository Secrets ───────────────────────────────────────
+  # ArgoCD needs these to recognize OCI registries for KRO and ACK charts.
+  # The URL must NOT include the oci:// prefix (ArgoCD adds it internally).
+  log_banner "Creating OCI Helm Repository Secrets"
+  for name_url in "kro-oci-repo registry.k8s.io/kro/charts" "ack-oci-repo public.ecr.aws/aws-controllers-k8s"; do
+    read -r sec_name sec_url <<< "${name_url}"
+    kubectl apply --context "$KIND_CONTEXT" -f - <<OCISECRET
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${sec_name}
+  namespace: ${ARGOCD_NAMESPACE}
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: helm
+  name: ${sec_name}
+  url: ${sec_url}
+  enableOCI: "true"
+OCISECRET
+    log_success "OCI repo '${sec_name}' → ${sec_url}"
+  done
 
   # ── Bootstrap ApplicationSets ─────────────────────────────────────────
   log_banner "Applying Bootstrap ApplicationSets"

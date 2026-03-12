@@ -34,7 +34,7 @@
 # Deploy in order: Foundation → Database → Search → Compute.
 # ─────────────────────────────────────────────────────────────────────────────
 
-instances:
+instances: {}
 
   # ── AwsGen3Foundation2 — Tier 0: Foundation-heavy (~$37/mo) ──────────────
   # 31 resources (max): VPC + gateways + subnets + route tables + KMS + S3
@@ -44,283 +44,283 @@ instances:
   # Uses 10.1.0.0/16 CIDR.
   # RGD: awsgen3foundation2-rg.yaml
 
-  spoke1-foundation:
-    kind: AwsGen3Foundation2
-    namespace: spoke1
-    syncWave: "15"
-    environment: local
-    spec:
-      name: spoke1
-      namespace: spoke1
-      region: us-east-1
-      environment: local
-      project: gen3-dev
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
+  # spoke1-foundation:
+  #   kind: AwsGen3Foundation2
+  #   namespace: spoke1
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
 
-      # Network
-      vpcCIDR: "10.1.0.0/16"
-      publicSubnetCIDRs:
-        - "10.1.240.0/24"
-        - "10.1.241.0/24"
-      privateSubnetCIDRs:
-        - "10.1.0.0/20"
-        - "10.1.16.0/20"
-      availabilityZones:
-        - "us-east-1a"
-        - "us-east-1b"
+  #     # Network
+  #     vpcCIDR: "10.1.0.0/16"
+  #     publicSubnetCIDRs:
+  #       - "10.1.240.0/24"
+  #       - "10.1.241.0/24"
+  #     privateSubnetCIDRs:
+  #       - "10.1.0.0/20"
+  #       - "10.1.16.0/20"
+  #     availabilityZones:
+  #       - "us-east-1a"
+  #       - "us-east-1b"
 
-      # Storage (globally unique S3 bucket names)
-      loggingBucketName: gen3-spoke1-logging
-      dataBucketName: gen3-spoke1-data
-      uploadBucketName: gen3-spoke1-upload
+  #     # Storage (globally unique S3 bucket names)
+  #     loggingBucketName: gen3-spoke1-logging
+  #     dataBucketName: gen3-spoke1-data
+  #     uploadBucketName: gen3-spoke1-upload
 
-      # KMS
-      kmsKeyDescription: spoke1 foundation encryption key
+  #     # KMS
+  #     kmsKeyDescription: spoke1 foundation encryption key
 
-      # Feature flags — control conditional resource groups
-      databaseEnabled: true        # DB subnets, DB RT, DB subnet group, DB KMS, Aurora SG
-      computeEnabled: true         # EKS SG, Cluster IAM Role (6 policies), Node IAM Role (4 policies)
-      searchEnabled: true          # Search KMS, OpenSearch SG
+  #     # Feature flags — control conditional resource groups
+  #     databaseEnabled: true        # DB subnets, DB RT, DB subnet group, DB KMS, Aurora SG
+  #     computeEnabled: true         # EKS SG, Cluster IAM Role (6 policies), Node IAM Role (4 policies)
+  #     searchEnabled: true          # Search KMS, OpenSearch SG
 
-      # Database prep (only when databaseEnabled: true)
-      dbSubnetCIDRs:
-        - "10.1.32.0/24"
-        - "10.1.33.0/24"
+  #     # Database prep (only when databaseEnabled: true)
+  #     dbSubnetCIDRs:
+  #       - "10.1.32.0/24"
+  #       - "10.1.33.0/24"
 
-      # Bridge (always creates foundationBridge; conditionally creates
-      # databasePrepBridge, computePrepBridge, searchPrepBridge)
-      createBridgeSecret: true
+  #     # Bridge (always creates foundationBridge; conditionally creates
+  #     # databasePrepBridge, computePrepBridge, searchPrepBridge)
+  #     createBridgeSecret: true
 
-  # ── AwsGen3Database2 — Tier 1: Thin Database (Aurora only) ───────────────
-  # PREREQUISITE: Foundation2 must have databaseEnabled: true.
-  # PREREQUISITE: Create the master password Secret before deploying:
-  #   kubectl create secret generic aurora-master-password \
-  #     -n spoke1 --from-literal=password='<your-secure-password>'
-  #
-  # Reads databasePrepBridge (DB subnet group, Aurora SG, DB KMS key)
-  # from Foundation. All networking/encryption/SG is pre-provisioned.
-  # Only creates: Aurora Cluster + Instance(s) + databaseBridge.
-  # RGD: awsgen3database2-rg.yaml
+  # # ── AwsGen3Database2 — Tier 1: Thin Database (Aurora only) ───────────────
+  # # PREREQUISITE: Foundation2 must have databaseEnabled: true.
+  # # PREREQUISITE: Create the master password Secret before deploying:
+  # #   kubectl create secret generic aurora-master-password \
+  # #     -n spoke1 --from-literal=password='<your-secure-password>'
+  # #
+  # # Reads databasePrepBridge (DB subnet group, Aurora SG, DB KMS key)
+  # # from Foundation. All networking/encryption/SG is pre-provisioned.
+  # # Only creates: Aurora Cluster + Instance(s) + databaseBridge.
+  # # RGD: awsgen3database2-rg.yaml
 
-  spoke1-database:
-    kind: AwsGen3Database2
-    namespace: spoke1
-    syncWave: "20"
-    environment: local
-    spec:
-      name: spoke1
-      namespace: spoke1
-      region: us-east-1
-      environment: local
-      project: gen3-dev
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
+  # spoke1-database:
+  #   kind: AwsGen3Database2
+  #   namespace: spoke1
+  #   syncWave: "20"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
 
-      # Bridge reference to Foundation's database prep
-      databasePrepBridgeName: spoke1-database-prep-bridge
-      foundationNamespace: spoke1
+  #     # Bridge reference to Foundation's database prep
+  #     databasePrepBridgeName: spoke1-database-prep-bridge
+  #     foundationNamespace: spoke1
 
-      # Aurora configuration
-      auroraEngineVersion: "16.6"
-      auroraDBName: gen3
-      auroraMasterUsername: postgres
-      masterPasswordSecretName: aurora-master-password
-      masterPasswordSecretKey: password
-      auroraMinCapacity: "0.5"
-      auroraMaxCapacity: "4"
+  #     # Aurora configuration
+  #     auroraEngineVersion: "16.6"
+  #     auroraDBName: gen3
+  #     auroraMasterUsername: postgres
+  #     masterPasswordSecretName: aurora-master-password
+  #     masterPasswordSecretKey: password
+  #     auroraMinCapacity: "0.5"
+  #     auroraMaxCapacity: "4"
 
-      # Bridge (creates databaseBridge for downstream tiers)
-      createBridgeSecret: true
+  #     # Bridge (creates databaseBridge for downstream tiers)
+  #     createBridgeSecret: true
 
-  # ── AwsGen3Compute2 — Tier 3: Thin Compute (EKS only) ───────────────────
-  # PREREQUISITE: Foundation2 must have computeEnabled: true.
-  #
-  # Reads computePrepBridge (EKS SG, Cluster Role ARN, Node Role ARN)
-  # and foundationBridge (VPC ID, subnet IDs) from Foundation.
-  # Only creates: EKS Cluster (Standard or Auto Mode) + Node Group +
-  # computeBridge.
-  # RGD: awsgen3compute2-rg.yaml
+  # # ── AwsGen3Compute2 — Tier 3: Thin Compute (EKS only) ───────────────────
+  # # PREREQUISITE: Foundation2 must have computeEnabled: true.
+  # #
+  # # Reads computePrepBridge (EKS SG, Cluster Role ARN, Node Role ARN)
+  # # and foundationBridge (VPC ID, subnet IDs) from Foundation.
+  # # Only creates: EKS Cluster (Standard or Auto Mode) + Node Group +
+  # # computeBridge.
+  # # RGD: awsgen3compute2-rg.yaml
 
-  spoke1-compute:
-    kind: AwsGen3Compute2
-    namespace: spoke1
-    syncWave: "25"
-    environment: local
-    spec:
-      name: spoke1
-      namespace: spoke1
-      region: us-east-1
-      environment: local
-      project: gen3-dev
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
+  # spoke1-compute:
+  #   kind: AwsGen3Compute2
+  #   namespace: spoke1
+  #   syncWave: "25"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
 
-      # Bridge references to Foundation's compute prep + foundation
-      computePrepBridgeName: spoke1-compute-prep-bridge
-      foundationBridgeName: spoke1-foundation-bridge
-      foundationNamespace: spoke1
+  #     # Bridge references to Foundation's compute prep + foundation
+  #     computePrepBridgeName: spoke1-compute-prep-bridge
+  #     foundationBridgeName: spoke1-foundation-bridge
+  #     foundationNamespace: spoke1
 
-      # EKS configuration
-      kubernetesVersion: "1.30"
-      eksAutoMode: false           # true = Auto Mode (no nodeGroup), false = Standard
+  #     # EKS configuration
+  #     kubernetesVersion: "1.30"
+  #     eksAutoMode: false           # true = Auto Mode (no nodeGroup), false = Standard
 
-      # Node group (Standard mode only, ignored when eksAutoMode: true)
-      nodeInstanceTypes:
-        - "t3.medium"
-      nodeDesiredSize: 2
-      nodeMinSize: 1
-      nodeMaxSize: 4
-      nodeDiskSize: 20
-      nodeAMIType: AL2023_x86_64_STANDARD
+  #     # Node group (Standard mode only, ignored when eksAutoMode: true)
+  #     nodeInstanceTypes:
+  #       - "t3.medium"
+  #     nodeDesiredSize: 2
+  #     nodeMinSize: 1
+  #     nodeMaxSize: 4
+  #     nodeDiskSize: 20
+  #     nodeAMIType: AL2023_x86_64_STANDARD
 
-      # Bridge (creates computeBridge for downstream tiers)
-      createBridgeSecret: true
+  #     # Bridge (creates computeBridge for downstream tiers)
+  #     createBridgeSecret: true
 
-  # ── AwsGen3Search1 — Tier 2: Thin Search (OpenSearch only) ───────────────
-  # PREREQUISITE: Foundation2 must have searchEnabled: true.
-  # PREREQUISITE: ACK opensearchservice controller must be installed.
-  #
-  # Reads searchPrepBridge (Search KMS Key ARN, OpenSearch SG ID)
-  # and foundationBridge (VPC ID, private subnet IDs) from Foundation.
-  # Only creates: OpenSearch Domain + searchBridge.
-  # RGD: awsgen3search1-rg.yaml
+  # # ── AwsGen3Search1 — Tier 2: Thin Search (OpenSearch only) ───────────────
+  # # PREREQUISITE: Foundation2 must have searchEnabled: true.
+  # # PREREQUISITE: ACK opensearchservice controller must be installed.
+  # #
+  # # Reads searchPrepBridge (Search KMS Key ARN, OpenSearch SG ID)
+  # # and foundationBridge (VPC ID, private subnet IDs) from Foundation.
+  # # Only creates: OpenSearch Domain + searchBridge.
+  # # RGD: awsgen3search1-rg.yaml
 
-  spoke1-search:
-    kind: AwsGen3Search1
-    namespace: spoke1
-    syncWave: "25"
-    environment: local
-    spec:
-      name: spoke1
-      namespace: spoke1
-      region: us-east-1
-      environment: local
-      project: gen3-dev
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
+  # spoke1-search:
+  #   kind: AwsGen3Search1
+  #   namespace: spoke1
+  #   syncWave: "25"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
 
-      # Bridge references to Foundation's search prep + foundation
-      searchPrepBridgeName: spoke1-search-prep-bridge
-      foundationBridgeName: spoke1-foundation-bridge
-      foundationNamespace: spoke1
+  #     # Bridge references to Foundation's search prep + foundation
+  #     searchPrepBridgeName: spoke1-search-prep-bridge
+  #     foundationBridgeName: spoke1-foundation-bridge
+  #     foundationNamespace: spoke1
 
-      # OpenSearch configuration
-      opensearchVersion: "OpenSearch_2.11"
-      opensearchInstanceType: "t3.small.search"
-      opensearchInstanceCount: 1
-      opensearchVolumeSize: 10
+  #     # OpenSearch configuration
+  #     opensearchVersion: "OpenSearch_2.11"
+  #     opensearchInstanceType: "t3.small.search"
+  #     opensearchInstanceCount: 1
+  #     opensearchVolumeSize: 10
 
-      # Bridge (creates searchBridge for downstream tiers)
-      createBridgeSecret: true
+  #     # Bridge (creates searchBridge for downstream tiers)
+  #     createBridgeSecret: true
 
-  # ── AwsGen3AppIAM1 — Tier 4: Application IAM (~$5/mo) ─────────────────────
-  # OIDC Provider + IRSA roles (fence, audit, hatchery, manifestservice,
-  # externalSecrets) + SQS queues (audit, ssjdispatcher) + Secrets Manager.
-  # All resources conditional via feature flags. Requires sqs + iam +
-  # secretsmanager ACK controllers.
-  # RGD: awsgen3appiam1-rg.yaml
+  # # ── AwsGen3AppIAM1 — Tier 4: Application IAM (~$5/mo) ─────────────────────
+  # # OIDC Provider + IRSA roles (fence, audit, hatchery, manifestservice,
+  # # externalSecrets) + SQS queues (audit, ssjdispatcher) + Secrets Manager.
+  # # All resources conditional via feature flags. Requires sqs + iam +
+  # # secretsmanager ACK controllers.
+  # # RGD: awsgen3appiam1-rg.yaml
 
-  spoke1-appiam:
-    kind: AwsGen3AppIAM1
-    namespace: spoke1
-    syncWave: "30"
-    environment: local
-    spec:
-      name: spoke1
-      namespace: spoke1
-      region: us-east-1
-      environment: local
-      project: gen3-dev
-      adoptionPolicy: adopt-or-create
-      deletionPolicy: delete
+  # spoke1-appiam:
+  #   kind: AwsGen3AppIAM1
+  #   namespace: spoke1
+  #   syncWave: "30"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
 
-      # Bridge references (same namespace — all in spoke1)
-      foundationBridgeName: spoke1-foundation-bridge
-      computeBridgeName: spoke1-compute-bridge
-      foundationNamespace: spoke1
-      computeNamespace: spoke1
+  #     # Bridge references (same namespace — all in spoke1)
+  #     foundationBridgeName: spoke1-foundation-bridge
+  #     computeBridgeName: spoke1-compute-bridge
+  #     foundationNamespace: spoke1
+  #     computeNamespace: spoke1
 
-      # Feature flags — all enabled for complete testing
-      fenceEnabled: true
-      auditEnabled: true
-      hatcheryEnabled: true
-      manifestserviceEnabled: true
-      externalSecretsEnabled: true
-      ssjdispatcherEnabled: true
+  #     # Feature flags — all enabled for complete testing
+  #     fenceEnabled: true
+  #     auditEnabled: true
+  #     hatcheryEnabled: true
+  #     manifestserviceEnabled: true
+  #     externalSecretsEnabled: true
+  #     ssjdispatcherEnabled: true
 
-      # Bridge
-      createBridgeSecret: true
+  #     # Bridge
+  #     createBridgeSecret: true
 
-  # ── AwsGen3Helm1 — Tier 5: Gen3 Application (ArgoCD App via RGD) ────────
-  # Creates an ArgoCD Application CR that deploys the gen3-helm umbrella
-  # chart onto the spoke EKS cluster. Reads foundation + compute bridges.
-  # RGD: awsgen3helm1-rg.yaml
+  # # ── AwsGen3Helm1 — Tier 5: Gen3 Application (ArgoCD App via RGD) ────────
+  # # Creates an ArgoCD Application CR that deploys the gen3-helm umbrella
+  # # chart onto the spoke EKS cluster. Reads foundation + compute bridges.
+  # # RGD: awsgen3helm1-rg.yaml
 
-  spoke1-gen3helm:
-    kind: AwsGen3Helm1
-    namespace: spoke1
-    syncWave: "35"
-    environment: local
-    spec:
-      name: spoke1
-      namespace: spoke1
-      region: us-east-1
-      environment: local
-      project: gen3-dev
+  # spoke1-gen3helm:
+  #   kind: AwsGen3Helm1
+  #   namespace: spoke1
+  #   syncWave: "35"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
 
-      # Gen3 configuration
-      hostname: spoke1.gen3.local
-      gen3HelmChartVersion: "0.1.104"
-      gen3HelmTargetRevision: "0.1.104"
+  #     # Gen3 configuration
+  #     hostname: spoke1.gen3.local
+  #     gen3HelmChartVersion: "0.1.104"
+  #     gen3HelmTargetRevision: "0.1.104"
 
-      # Bridge references (same namespace — all in spoke1)
-      foundationBridgeName: spoke1-foundation-bridge
-      computeBridgeName: spoke1-compute-bridge
-      foundationNamespace: spoke1
-      computeNamespace: spoke1
+  #     # Bridge references (same namespace — all in spoke1)
+  #     foundationBridgeName: spoke1-foundation-bridge
+  #     computeBridgeName: spoke1-compute-bridge
+  #     foundationNamespace: spoke1
+  #     computeNamespace: spoke1
 
-      # Gen3 service flags — all enabled for complete testing
-      fenceEnabled: true
-      auditEnabled: true
-      hatcheryEnabled: true
-      manifestserviceEnabled: true
-      indexdEnabled: true
-      metadataEnabled: true
-      peregrinEnabled: true
-      sheepdogEnabled: true
-      guppyEnabled: true
-      portalEnabled: true
-      autoSync: false
+  #     # Gen3 service flags — all enabled for complete testing
+  #     fenceEnabled: true
+  #     auditEnabled: true
+  #     hatcheryEnabled: true
+  #     manifestserviceEnabled: true
+  #     indexdEnabled: true
+  #     metadataEnabled: true
+  #     peregrinEnabled: true
+  #     sheepdogEnabled: true
+  #     guppyEnabled: true
+  #     portalEnabled: true
+  #     autoSync: false
 
-  # ── AwsGen3Observability1 — Tier 6: LGTM Stack (ArgoCD Apps via RGD) ────
-  # Creates ArgoCD Application CRs for Grafana, Loki, Tempo, Alloy.
-  # Each component conditional via feature flags.
-  # RGD: awsgen3observability1-rg.yaml
+  # # ── AwsGen3Observability1 — Tier 6: LGTM Stack (ArgoCD Apps via RGD) ────
+  # # Creates ArgoCD Application CRs for Grafana, Loki, Tempo, Alloy.
+  # # Each component conditional via feature flags.
+  # # RGD: awsgen3observability1-rg.yaml
 
-  spoke1-observability:
-    kind: AwsGen3Observability1
-    namespace: spoke1
-    syncWave: "35"
-    environment: local
-    spec:
-      name: spoke1
-      namespace: spoke1
-      region: us-east-1
-      environment: local
-      project: gen3-dev
+  # spoke1-observability:
+  #   kind: AwsGen3Observability1
+  #   namespace: spoke1
+  #   syncWave: "35"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
 
-      # Bridge references (same namespace — all in spoke1)
-      computeBridgeName: spoke1-compute-bridge
-      computeNamespace: spoke1
+  #     # Bridge references (same namespace — all in spoke1)
+  #     computeBridgeName: spoke1-compute-bridge
+  #     computeNamespace: spoke1
 
-      # Observability components — all enabled for complete testing
-      grafanaEnabled: true
-      lokiEnabled: true
-      tempoEnabled: true
-      alloyEnabled: true
-      observabilityNamespace: monitoring
-      autoSync: false
+  #     # Observability components — all enabled for complete testing
+  #     grafanaEnabled: true
+  #     lokiEnabled: true
+  #     tempoEnabled: true
+  #     alloyEnabled: true
+  #     observabilityNamespace: monitoring
+  #     autoSync: false
 
   # ── Tier 7: Advanced & Monitoring (NOT instantiated — future) ────────────
   # RGD awsgen3advanced1 does not exist yet. Planned for Phase 9 (Plan 02).

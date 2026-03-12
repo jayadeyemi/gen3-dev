@@ -3,18 +3,20 @@
 # kro-status-report.sh — KRO + ACK Resource Status Report for gen3-dev
 #
 # Produces a structured report of:
-#   1. KRO controller health
-#   2. ResourceGraphDefinition (RGD) registry
-#   3. Active KRO instance status (conditions + bridge ConfigMaps)
-#   4. ACK-managed AWS resources per namespace (ARN + sync status)
+#   1. KRO controller health + all RGDs
+#   2. ACK controller health (auto-discovered from addons.yaml)
+#   3. Active KRO instance status (auto-discovered from infrastructure.yaml)
+#      — conditions, status fields, bridge ConfigMaps, per-instance ACK resources
+#   4. ACK-managed AWS resources (all namespaces from infrastructure.yaml)
+#   5. ArgoCD Application health
 #
 # Usage:
-#   bash scripts/kro-status-report.sh               # Full report (all namespaces)
-#   bash scripts/kro-status-report.sh --ns gen3-foundation   # Single namespace
-#   bash scripts/kro-status-report.sh --instance gen3-foundation  # Single instance
-#   bash scripts/kro-status-report.sh --section kro          # kro | instances | ack
-#   bash scripts/kro-status-report.sh --json ./report.json   # Dump JSON alongside report
-#   bash scripts/kro-status-report.sh --out ./report.txt     # Write to file
+#   bash scripts/kro-status-report.sh                        # Full report (stdout)
+#   bash scripts/kro-status-report.sh --out ./report.ansi   # Save ANSI file
+#   bash scripts/kro-status-report.sh --ns spoke1           # Filter namespace
+#   bash scripts/kro-status-report.sh --instance spoke1-foundation  # Filter instance
+#   bash scripts/kro-status-report.sh --section kro         # kro | ack | instances | argocd
+#   bash scripts/kro-status-report.sh --json ./report.json  # Also emit JSON snapshot
 #
 # Mirrors kind-local-test.sh script structure and lib-logging.sh conventions.
 ###############################################################################
@@ -23,13 +25,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 
+ADDONS_FILE="${REPO_DIR}/argocd/addons/local/addons.yaml"
+INFRA_FILE="${REPO_DIR}/argocd/cluster-fleet/local-aws-dev/infrastructure.yaml"
+
 # shellcheck source=lib-logging.sh
 source "${SCRIPT_DIR}/lib-logging.sh"
 
 # ── Argument Parsing ──────────────────────────────────────────────────────────
 FILTER_NS=""
 FILTER_INSTANCE=""
-FILTER_SECTION=""   # kro | instances | ack | (empty = all)
+FILTER_SECTION=""   # kro | instances | ack | argocd | (empty = all)
 JSON_OUT=""
 FILE_OUT=""
 
@@ -41,27 +46,144 @@ while [[ $# -gt 0 ]]; do
     --json)      JSON_OUT="$2";        shift 2 ;;
     --out)       FILE_OUT="$2";        shift 2 ;;
     -h|--help)
-      sed -n '4,14p' "$0" | sed 's/^# //'
+      sed -n '4,18p' "$0" | sed 's/^# //'
       exit 0 ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
 
-# ── Output Tee ────────────────────────────────────────────────────────────────
+# ── Output Tee: force ANSI colours even when writing to file ──────────────────
 if [[ -n "${FILE_OUT}" ]]; then
+  # Force ANSI colour codes regardless of tty detection in lib-logging.sh
+  _CLR_RST='\033[0m'
+  _CLR_GRN='\033[0;32m'
+  _CLR_YLW='\033[0;33m'
+  _CLR_RED='\033[0;31m'
+  _CLR_BLU='\033[0;34m'
+  _CLR_CYN='\033[0;36m'
+  _CLR_MAG='\033[0;35m'
+  _CLR_WHT='\033[1;37m'
+  _CLR_DIM='\033[2m'
   exec > >(tee "${FILE_OUT}") 2>&1
+else
+  # Honour tty detection but add extra colours
+  if [[ -t 1 ]]; then
+    _CLR_MAG='\033[0;35m'
+    _CLR_WHT='\033[1;37m'
+    _CLR_DIM='\033[2m'
+  else
+    _CLR_MAG='' _CLR_WHT='' _CLR_DIM=''
+  fi
 fi
 
-# ── Helper: print separator ───────────────────────────────────────────────────
-sep()      { echo "────────────────────────────────────────────────────────────────────"; }
-sep_thin() { echo "  ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈"; }
+# ── Helper: print separators ─────────────────────────────────────────────────
+sep()      { echo -e "${_CLR_DIM}────────────────────────────────────────────────────────────────────${_CLR_RST}"; }
+sep_thin() { echo -e "${_CLR_DIM}  ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈${_CLR_RST}"; }
 
 # ── Helper: kubectl quiet (no error on not-found) ─────────────────────────────
-kget() { kubectl get "$@" 2>/dev/null || true; }
+kget()  { kubectl get "$@" 2>/dev/null || true; }
 kdesc() { kubectl describe "$@" 2>/dev/null || true; }
 
-# ── Helper: extract ACK condition value ──────────────────────────────────────
-# usage: ack_condition <namespace> <resource-type> <resource-name> <condition-type>
+# ── Helper: auto-discover ACK controller service-account names from addons.yaml
+# Returns lines of "ack-<service>-controller" by reading serviceAccount.name
+# from each ack-* block in addons.yaml.
+discover_ack_controllers() {
+  python3 - "${ADDONS_FILE}" <<'PYEOF'
+import sys, re
+
+path = sys.argv[1]
+try:
+    text = open(path).read()
+except Exception as e:
+    print(f"# error: {e}", file=sys.stderr)
+    sys.exit(0)
+
+# Find all serviceAccount.name values under ack-* keys
+# Lines match:  name: "ack-XXX-controller"
+for m in re.finditer(r'name:\s*["\']?(ack-[\w-]+-controller)["\']?', text):
+    print(m.group(1))
+PYEOF
+}
+
+# ── Helper: auto-discover active instances from infrastructure.yaml ────────────
+# Outputs lines of "kind|instance-name|namespace"
+discover_instances() {
+  python3 - "${INFRA_FILE}" <<'PYEOF'
+import sys, re
+
+path = sys.argv[1]
+try:
+    text = open(path).read()
+except Exception as e:
+    print(f"# error: {e}", file=sys.stderr)
+    sys.exit(0)
+
+# Simple block parser: find top-level keys under "instances:" that are not
+# commented out. We look for lines that match:
+#   ^  <instance-name>:
+# then scan forward for "kind:", "namespace:"
+lines = text.splitlines()
+in_instances = False
+indent_instances = None
+current_entry = None
+entry_indent = None
+entries = {}  # name -> {kind, namespace}
+
+for i, line in enumerate(lines):
+    stripped = line.lstrip()
+    indent = len(line) - len(stripped)
+
+    # Detect "instances:" block (not commented)
+    if re.match(r'^instances\s*:', line) and not line.startswith('#'):
+        in_instances = True
+        indent_instances = indent
+        continue
+
+    if not in_instances:
+        continue
+
+    # A comment line inside instances block
+    if stripped.startswith('#'):
+        continue
+
+    # An empty line — keep going
+    if not stripped:
+        continue
+
+    # If we dedent back to top-level, we've left instances
+    if indent <= indent_instances and stripped and not stripped.startswith('#'):
+        in_instances = False
+        continue
+
+    # New instance entry: exactly 2 spaces deeper than "instances:"
+    if indent == indent_instances + 2 and stripped.endswith(':') and not stripped.startswith('#'):
+        current_entry = stripped[:-1]
+        entry_indent = indent
+        entries[current_entry] = {}
+        continue
+
+    if current_entry and indent > entry_indent:
+        if m := re.match(r'kind:\s*(\S+)', stripped):
+            entries[current_entry]['kind'] = m.group(1)
+        if m := re.match(r'namespace:\s*(\S+)', stripped):
+            # Only capture the top-level namespace (not spec.namespace)
+            if 'namespace' not in entries[current_entry]:
+                entries[current_entry]['namespace'] = m.group(1)
+
+for name, info in entries.items():
+    kind = info.get('kind', '')
+    ns   = info.get('namespace', '')
+    if kind and ns:
+        print(f"{kind}|{name}|{ns}")
+PYEOF
+}
+
+# ── Helper: derive unique namespaces from infrastructure.yaml ─────────────────
+discover_namespaces() {
+  discover_instances | awk -F'|' '{print $3}' | sort -u
+}
+
+# ── Helper: extract ACK condition value ───────────────────────────────────────
 ack_condition() {
   local ns="$1" restype="$2" resname="$3" condtype="$4"
   kubectl get "${restype}" "${resname}" -n "${ns}" \
@@ -69,133 +191,161 @@ ack_condition() {
     || echo "unknown"
 }
 
-# ── Helper: extract ACK ARN ──────────────────────────────────────────────────
+# ── Helper: extract ACK ARN ───────────────────────────────────────────────────
 ack_arn() {
   local ns="$1" restype="$2" resname="$3"
-  kubectl get "${restype}" "${resname}" -n "${ns}" \
-    -o jsonpath="{.status.ackResourceMetadata.arn}" 2>/dev/null \
-    || echo "(not set)"
+  local arn
+  arn=$(kubectl get "${restype}" "${resname}" -n "${ns}" \
+    -o jsonpath="{.status.ackResourceMetadata.arn}" 2>/dev/null || true)
+  # Redact account ID from ARNs when printing (12-digit segment after "arn:aws:*:*:")
+  echo "${arn:-}" | sed 's/\(arn:[^:]*:[^:]*:[^:]*:\)[0-9]\{12\}/\1<account>/g'
 }
 
-# ── Helper: print ACK resource table for a namespace ──────────────────────────
+# ── ACK resource types with human labels (ordered for display) ────────────────
+declare -a ACK_RESTYPES=(
+  "vpcs.ec2.services.k8s.aws|VPC"
+  "internetgateways.ec2.services.k8s.aws|InternetGateway"
+  "elasticipaddresses.ec2.services.k8s.aws|ElasticIPAddress"
+  "natgateways.ec2.services.k8s.aws|NatGateway"
+  "routetables.ec2.services.k8s.aws|RouteTable"
+  "subnets.ec2.services.k8s.aws|Subnet"
+  "securitygroups.ec2.services.k8s.aws|SecurityGroup"
+  "keys.kms.services.k8s.aws|KMS Key"
+  "buckets.s3.services.k8s.aws|S3 Bucket"
+  "queues.sqs.services.k8s.aws|SQS Queue"
+  "dbsubnetgroups.rds.services.k8s.aws|DBSubnetGroup"
+  "dbclusters.rds.services.k8s.aws|DBCluster"
+  "dbinstances.rds.services.k8s.aws|DBInstance"
+  "domains.opensearchservice.services.k8s.aws|OpenSearch Domain"
+  "roles.iam.services.k8s.aws|IAM Role"
+  "policies.iam.services.k8s.aws|IAM Policy"
+  "openidconnectproviders.iam.services.k8s.aws|OIDC Provider"
+  "secrets.secretsmanager.services.k8s.aws|SM Secret"
+)
+
+# ── Helper: print ACK resource table for a namespace ─────────────────────────
 # usage: report_ack_resources <namespace>
 report_ack_resources() {
   local ns="$1"
-
-  # ACK resource types → (api-group, short-print-column header)
-  local -A RESOURCE_TYPES=(
-    ["vpcs.ec2.services.k8s.aws"]="VPC"
-    ["internetgateways.ec2.services.k8s.aws"]="InternetGateway"
-    ["elasticipaddresses.ec2.services.k8s.aws"]="ElasticIPAddress"
-    ["natgateways.ec2.services.k8s.aws"]="NatGateway"
-    ["routetables.ec2.services.k8s.aws"]="RouteTable"
-    ["subnets.ec2.services.k8s.aws"]="Subnet"
-    ["securitygroups.ec2.services.k8s.aws"]="SecurityGroup"
-    ["keys.kms.services.k8s.aws"]="KMS Key"
-    ["buckets.s3.services.k8s.aws"]="S3 Bucket"
-    ["dbsubnetgroups.rds.services.k8s.aws"]="DBSubnetGroup"
-    ["dbclusters.rds.services.k8s.aws"]="DBCluster"
-    ["dbinstances.rds.services.k8s.aws"]="DBInstance"
-    ["roles.iam.services.k8s.aws"]="IAM Role"
-    ["policies.iam.services.k8s.aws"]="IAM Policy"
-    ["secrets.secretsmanager.services.k8s.aws"]="SM Secret"
-  )
-
   local any_found=0
 
-  for restype in "${!RESOURCE_TYPES[@]}"; do
-    local label="${RESOURCE_TYPES[${restype}]}"
+  for entry in "${ACK_RESTYPES[@]}"; do
+    IFS='|' read -r restype label <<< "${entry}"
     local items
     items=$(kget "${restype}" -n "${ns}" --no-headers 2>/dev/null) || continue
     [[ -z "${items}" ]] && continue
     any_found=1
 
-    printf "  %-22s\n" "${label}"
+    echo -e "  ${_CLR_WHT}${label}${_CLR_RST}"
     while IFS= read -r line; do
+      [[ -z "${line}" ]] && continue
       local resname
       resname=$(echo "${line}" | awk '{print $1}')
-      local synced
+      local synced terminal arn icon clr
       synced=$(ack_condition "${ns}" "${restype}" "${resname}" "ACK.ResourceSynced")
-      local terminal
       terminal=$(ack_condition "${ns}" "${restype}" "${resname}" "ACK.Terminal")
-      local arn
       arn=$(ack_arn "${ns}" "${restype}" "${resname}")
 
-      # Status icon
-      local icon="·"
-      [[ "${synced}" == "True" ]]  && icon="✓"
-      [[ "${synced}" == "False" ]] && icon="✗"
-      [[ "${terminal}" == "True" ]] && icon="!"
+      icon="·"; clr="${_CLR_DIM}"
+      if [[ "${terminal}" == "True" ]]; then
+        icon="!"; clr="${_CLR_RED}"
+      elif [[ "${synced}" == "True" ]]; then
+        icon="✓"; clr="${_CLR_GRN}"
+      elif [[ "${synced}" == "False" ]]; then
+        icon="✗"; clr="${_CLR_YLW}"
+      fi
 
-      printf "    %s  %-40s  synced=%-7s  %s\n" "${icon}" "${resname}" "${synced}" "${arn}"
+      printf "    ${clr}%s${_CLR_RST}  %-42s  synced=%-7s  ${_CLR_DIM}%s${_CLR_RST}\n" \
+        "${icon}" "${resname}" "${synced}" "${arn}"
     done <<< "${items}"
   done
 
   if [[ "${any_found}" -eq 0 ]]; then
-    echo "  (no ACK resources found in namespace ${ns})"
+    echo -e "  ${_CLR_DIM}(no ACK resources found in namespace ${ns})${_CLR_RST}"
   fi
 }
 
-# ── Helper: print KRO instance status ─────────────────────────────────────────
+# ── Helper: print KRO instance status ────────────────────────────────────────
 # usage: report_instance <kind> <name> <namespace>
 report_instance() {
   local kind="$1" name="$2" ns="$3"
 
-  # Map Kind → KRO plural (kubectl get uses plural CRD names)
   local plural
   plural=$(kubectl get crd --no-headers 2>/dev/null \
     | awk -v k="$(echo "${kind}" | tr '[:upper:]' '[:lower:]')" \
-      'tolower($0) ~ k {print $1; exit}') || plural=""
+      'tolower($1) ~ k {print $1; exit}') || plural=""
+
+  echo ""
+  echo -e "  ${_CLR_WHT}Instance:${_CLR_RST}  ${name}  ${_CLR_DIM}(${kind})${_CLR_RST}"
+  echo -e "  ${_CLR_WHT}Namespace:${_CLR_RST} ${ns}"
 
   if [[ -z "${plural}" ]]; then
-    log_warn "CRD for kind '${kind}' not found — RGD may not be installed yet"
+    echo -e "  ${_CLR_YLW}⚠  CRD not found — RGD may not be installed yet${_CLR_RST}"
     return
   fi
 
-  echo ""
-  echo "  Instance:  ${name}  (${kind})"
-  echo "  Namespace: ${ns}"
-
-  local status_ready
+  local status_ready status_reason status_msg
   status_ready=$(kubectl get "${plural}" "${name}" -n "${ns}" \
-    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null \
-    || echo "unknown")
-
-  local status_reason
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "unknown")
   status_reason=$(kubectl get "${plural}" "${name}" -n "${ns}" \
-    -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null \
-    || echo "")
-
-  local status_msg
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || echo "")
   status_msg=$(kubectl get "${plural}" "${name}" -n "${ns}" \
-    -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null \
-    || echo "")
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || echo "")
 
-  local icon="·"
-  [[ "${status_ready}" == "True" ]]  && icon="✓"
-  [[ "${status_ready}" == "False" ]] && icon="✗"
+  local icon clr
+  icon="·"; clr="${_CLR_DIM}"
+  [[ "${status_ready}" == "True" ]]  && { icon="✓"; clr="${_CLR_GRN}"; }
+  [[ "${status_ready}" == "False" ]] && { icon="✗"; clr="${_CLR_RED}"; }
 
-  printf "  %s  Ready=%-7s  %s\n" "${icon}" "${status_ready}" "${status_reason}"
-  [[ -n "${status_msg}" ]] && printf "     msg: %s\n" "${status_msg}"
+  printf "  ${clr}%s  Ready=%-7s${_CLR_RST}  %s\n" "${icon}" "${status_ready}" "${status_reason}"
+  if [[ -n "${status_msg}" ]]; then
+    printf "     ${_CLR_DIM}msg: %s${_CLR_RST}\n" "${status_msg}"
+  fi
 
-  # Print full status section
+  # Status fields (non-conditions)
   echo ""
-  echo "  Status fields:"
+  echo -e "  ${_CLR_CYN}Status fields:${_CLR_RST}"
   kubectl get "${plural}" "${name}" -n "${ns}" \
     -o jsonpath='{.status}' 2>/dev/null \
-    | python3 -c "import sys,json; d=json.load(sys.stdin); [print(f'    {k}: {v}') for k,v in d.items() if k != 'conditions']" \
-    2>/dev/null || echo "    (status not available)"
+    | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    for k, v in d.items():
+        if k != 'conditions':
+            print(f'    {k}: {v}')
+except Exception:
+    print('    (status not available)')
+" 2>/dev/null || echo "    (status not available)"
 
-  # Print all conditions
+  # All conditions
   echo ""
-  echo "  Conditions:"
-  kubectl get "${plural}" "${name}" -n "${ns}" \
-    -o jsonpath='{range .status.conditions[*]}    {.type}={.status}  {.reason}  {.message}{"\n"}{end}' \
-    2>/dev/null || echo "    (no conditions)"
+  echo -e "  ${_CLR_CYN}Conditions:${_CLR_RST}"
+  local conds
+  conds=$(kubectl get "${plural}" "${name}" -n "${ns}" \
+    -o jsonpath='{range .status.conditions[*]}{.type}={.status}  {.reason}  {.message}{"\n"}{end}' \
+    2>/dev/null || echo "")
+
+  if [[ -z "${conds}" ]]; then
+    echo "    (no conditions)"
+  else
+    while IFS= read -r cline; do
+      [[ -z "${cline}" ]] && continue
+      local cclr="${_CLR_DIM}"
+      [[ "${cline}" == *"=True"* ]]  && cclr="${_CLR_GRN}"
+      [[ "${cline}" == *"=False"* ]] && cclr="${_CLR_YLW}"
+      echo -e "    ${cclr}${cline}${_CLR_RST}"
+    done <<< "${conds}"
+  fi
+
+  # Per-instance ACK resources
+  echo ""
+  echo -e "  ${_CLR_CYN}ACK resources in namespace '${ns}':${_CLR_RST}"
+  report_ack_resources "${ns}"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECTION 1 — KRO Controller
+# SECTION 1 — KRO Controller + RGDs
 # ─────────────────────────────────────────────────────────────────────────────
 section_kro() {
   log_banner "SECTION 1 — KRO Controller"
@@ -210,139 +360,158 @@ section_kro() {
     2>/dev/null || kget resourcegraphdefinitions.kro.run --all-namespaces
   echo ""
 
-  log_stage "RGD conditions" "any non-Ready"
-  local rgds
+  log_stage "RGD conditions" "non-Ready only"
+  local rgds any_degraded=0
   rgds=$(kubectl get resourcegraphdefinitions.kro.run -A --no-headers \
-    -o custom-columns='NAME:.metadata.name' 2>/dev/null)
-  while IFS= read -r rgd_name; do
-    [[ -z "${rgd_name}" ]] && continue
-    local ready
-    ready=$(kubectl get resourcegraphdefinitions.kro.run "${rgd_name}" \
-      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null \
-      || echo "unknown")
-    if [[ "${ready}" != "True" ]]; then
-      echo "  ⚠ ${rgd_name} — Ready=${ready}"
-      kubectl get resourcegraphdefinitions.kro.run "${rgd_name}" \
-        -o jsonpath='    reason={.status.conditions[?(@.type=="Ready")].reason}{"\n"}    msg={.status.conditions[?(@.type=="Ready")].message}{"\n"}' \
-        2>/dev/null || true
-    fi
-  done <<< "${rgds}"
+    -o custom-columns='NAME:.metadata.name' 2>/dev/null || echo "")
+  if [[ -n "${rgds}" ]]; then
+    while IFS= read -r rgd_name; do
+      [[ -z "${rgd_name}" ]] && continue
+      local ready
+      ready=$(kubectl get resourcegraphdefinitions.kro.run "${rgd_name}" \
+        -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "unknown")
+      if [[ "${ready}" != "True" ]]; then
+        any_degraded=1
+        echo -e "  ${_CLR_YLW}⚠  ${rgd_name}${_CLR_RST} — Ready=${ready}"
+        kubectl get resourcegraphdefinitions.kro.run "${rgd_name}" \
+          -o jsonpath='    reason={.status.conditions[?(@.type=="Ready")].reason}{"\n"}    msg={.status.conditions[?(@.type=="Ready")].message}{"\n"}' \
+          2>/dev/null || true
+      fi
+    done <<< "${rgds}"
+  fi
+  [[ "${any_degraded}" -eq 0 ]] && echo -e "  ${_CLR_GRN}✓  All RGDs are Ready${_CLR_RST}"
   echo ""
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECTION 2 — ACK Controllers
+# SECTION 2 — ACK Controllers (auto-discovered from addons.yaml)
 # ─────────────────────────────────────────────────────────────────────────────
 section_ack_controllers() {
   log_banner "SECTION 2 — ACK Controllers"
 
-  local ack_namespaces=(
-    "ack-ec2-controller"
-    "ack-eks-controller"
-    "ack-iam-controller"
-    "ack-kms-controller"
-    "ack-rds-controller"
-    "ack-s3-controller"
-    "ack-secretsmanager-controller"
-  )
+  # All ACK controllers share namespace "ack" (consolidated namespace per addons.yaml)
+  local ACK_NS="ack"
 
-  printf "%-45s %-10s %-10s\n" "CONTROLLER" "READY" "PODS"
+  # Discover service account names → derive controller deployment names
+  local sa_names
+  readarray -t sa_names < <(discover_ack_controllers | sort -u)
+
+  if [[ ${#sa_names[@]} -eq 0 ]]; then
+    log_warn "No ACK controllers found in ${ADDONS_FILE}"
+    return
+  fi
+
+  printf "%-45s %-8s %-8s %s\n" "CONTROLLER (SA)" "READY" "TOTAL" "DEPLOYMENT STATUS"
   sep_thin
-  for ack_ns in "${ack_namespaces[@]}"; do
-    local ready
-    ready=$(kubectl get pods -n "${ack_ns}" --no-headers 2>/dev/null \
-      | grep -c "Running" || echo 0)
-    local total
-    total=$(kubectl get pods -n "${ack_ns}" --no-headers 2>/dev/null \
-      | wc -l | tr -d ' ' || echo 0)
-    local status="✗"
-    [[ "${ready}" -gt 0 ]] && status="✓"
-    printf "%s  %-42s pods=%s/%s\n" "${status}" "${ack_ns}" "${ready}" "${total}"
+
+  for sa_name in "${sa_names[@]}"; do
+    [[ -z "${sa_name}" ]] && continue
+
+    # Derive chart-name prefix from SA name: ack-ec2-controller → ec2
+    # Pod names in the consolidated "ack" namespace are: <service>-chart-<hash>
+    local svc_name="${sa_name#ack-}"          # strip leading "ack-"
+    svc_name="${svc_name%-controller}"        # strip trailing "-controller"
+    # e.g. "ec2", "eks", "opensearchservice"
+
+    local running total icon clr deploy_status all_pods
+    all_pods=$(kubectl get pods -n "${ACK_NS}" --no-headers 2>/dev/null || true)
+
+    running=$(echo "${all_pods}" | grep -c "^${svc_name}-chart.*Running" || true)
+    total=$(echo "${all_pods}"   | grep -c "^${svc_name}-chart" || true)
+    running="${running:-0}"
+    total="${total:-0}"
+
+    if [[ "${running}" -gt 0 ]]; then
+      icon="✓"; clr="${_CLR_GRN}"; deploy_status="Running"
+    elif [[ "${total}" -gt 0 ]]; then
+      icon="⚠"; clr="${_CLR_YLW}"; deploy_status="Degraded"
+    else
+      icon="✗"; clr="${_CLR_RED}"; deploy_status="Not Ready / No pods"
+    fi
+
+    printf "${clr}%s${_CLR_RST}  %-42s  ${clr}%s/%s${_CLR_RST}  %s\n" \
+      "${icon}" "${sa_name}" "${running}" "${total}" "${deploy_status}"
   done
+
+  echo ""
+  log_stage "All pods in namespace" "${ACK_NS}"
+  kget pods -n "${ACK_NS}" -o wide
   echo ""
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECTION 3 — Active KRO Instances
+# SECTION 3 — Active KRO Instances (auto-discovered from infrastructure.yaml)
 # ─────────────────────────────────────────────────────────────────────────────
-# Enumerate known instances. Add new entries here as you deploy them.
 section_instances() {
   log_banner "SECTION 3 — KRO Instance Status"
+  log_info "Auto-discovering instances from cluster-fleet/local-aws-dev/infrastructure.yaml"
 
-  # Format: "Kind|name|namespace"
-  local INSTANCES=(
-    # ── Production instances ──────────────────────────────────────────
-    "AwsGen3Foundation1|gen3-foundation|gen3-foundation"
-    # "AwsGen3Test1Flat|gen3-dev-test|gen3-dev-test"
-    # "AwsGen3Database1|gen3-database|gen3-database"
-    # "AwsGen3Compute1|gen3-compute|gen3-compute"
-    # ── KRO capability tests ──────────────────────────────────────────
-    # "KroForEachTest|kro-foreach-basic|kro-test-foreach"
-    # "KroForEachTest|kro-foreach-cartesian|kro-test-foreach-cart"
-    # "KroIncludeWhenTest|kro-includewhen-minimal|kro-test-includewhen"
-    # "KroIncludeWhenTest|kro-includewhen-full|kro-test-includewhen-full"
-    # "KroBridgeProducer|kro-bridge-producer|kro-test-bridge"
-    # "KroBridgeConsumer|kro-bridge-consumer|kro-test-bridge"
-    # "KroCELTest|kro-cel-dev|kro-test-cel"
-    # "KroCELTest|kro-cel-prod|kro-test-cel-prod"
-    # "KroTest06SgConditional|kro-sg-base-only|kro-test-sg"
-    # "KroTest06SgConditional|kro-sg-all-features|kro-test-sg-full"
-    # "KroTest07Producer|kro-crossrgd-producer|kro-test-crossrgd"
-    # "KroTest07Consumer|kro-crossrgd-consumer|kro-test-crossrgd-consumer"
-  )
+  local entries
+  readarray -t entries < <(discover_instances)
 
-  for entry in "${INSTANCES[@]}"; do
-    # Skip commented entries (leading whitespace + #)
-    [[ "${entry}" =~ ^[[:space:]]*# ]] && continue
+  if [[ ${#entries[@]} -eq 0 ]]; then
+    log_warn "No active instances found in ${INFRA_FILE}"
+  fi
+
+  local found_any=0
+  for entry in "${entries[@]}"; do
     [[ -z "${entry}" ]] && continue
-
     IFS='|' read -r kind name ns <<< "${entry}"
+    [[ -z "${kind}" || -z "${name}" || -z "${ns}" ]] && continue
 
-    # Apply instance filter
     if [[ -n "${FILTER_INSTANCE}" && "${name}" != "${FILTER_INSTANCE}" ]]; then
       continue
     fi
+    if [[ -n "${FILTER_NS}" && "${ns}" != "${FILTER_NS}" ]]; then
+      continue
+    fi
 
+    found_any=1
     sep
     report_instance "${kind}" "${name}" "${ns}"
     echo ""
   done
 
-  # Bridge ConfigMaps across all known namespaces
+  [[ "${found_any}" -eq 0 ]] && echo "  (no instances matched filters)"
+
+  # Bridge ConfigMaps summary
   sep
   echo ""
   log_stage "bridge ConfigMaps" "all namespaces"
-  kget configmap --all-namespaces \
+  local bridges
+  bridges=$(kget configmap --all-namespaces \
     -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,AGE:.metadata.creationTimestamp' \
-    | grep -E "(bridge|crossrgd)" || echo "  (none found)"
+    2>/dev/null | grep -E "(bridge|crossrgd)" || true)
+  if [[ -n "${bridges}" ]]; then
+    while IFS= read -r bline; do
+      echo -e "  ${_CLR_MAG}${bline}${_CLR_RST}"
+    done <<< "${bridges}"
+  else
+    echo "  (none found)"
+  fi
   echo ""
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECTION 4 — ACK AWS Resources Per Namespace
+# SECTION 4 — ACK AWS Resources (all instance namespaces)
 # ─────────────────────────────────────────────────────────────────────────────
 section_ack_resources() {
-  log_banner "SECTION 4 — ACK-Managed AWS Resources"
+  log_banner "SECTION 4 — ACK-Managed AWS Resources (by namespace)"
 
-  # Namespaces to scan. Extend as you add instances.
-  local NAMESPACES=(
-    "gen3-foundation"
-    "gen3-database"
-    "gen3-compute"
-    "gen3-dev-test"
-    "kro-test-sg"
-    "kro-test-sg-full"
-    "kro-test-crossrgd"
-    "kro-test-crossrgd-consumer"
-  )
+  local namespaces
+  readarray -t namespaces < <(discover_namespaces)
 
-  for ns in "${NAMESPACES[@]}"; do
-    # Apply namespace filter
+  if [[ ${#namespaces[@]} -eq 0 ]]; then
+    log_warn "No namespaces found — check ${INFRA_FILE}"
+    return
+  fi
+
+  for ns in "${namespaces[@]}"; do
+    [[ -z "${ns}" ]] && continue
     if [[ -n "${FILTER_NS}" && "${ns}" != "${FILTER_NS}" ]]; then
       continue
     fi
 
-    # Skip if namespace doesn't exist
     kubectl get namespace "${ns}" &>/dev/null || continue
 
     sep
@@ -360,20 +529,48 @@ section_ack_resources() {
 section_argocd() {
   log_banner "SECTION 5 — ArgoCD Application Health"
 
-  kget applications.argoproj.io -n argocd \
+  local apps
+  apps=$(kget applications.argoproj.io -n argocd \
     -o custom-columns='NAME:.metadata.name,HEALTH:.status.health.status,SYNC:.status.sync.status,REVISION:.status.sync.revision' \
-    2>/dev/null || log_warn "ArgoCD not installed or no applications found"
+    2>/dev/null || echo "")
+
+  if [[ -z "${apps}" ]]; then
+    log_warn "ArgoCD not installed or no applications found"
+    echo ""
+    return
+  fi
+
+  # Print with colour coding per health status
+  local header=1
+  while IFS= read -r aline; do
+    if [[ "${header}" -eq 1 ]]; then
+      echo -e "${_CLR_WHT}${aline}${_CLR_RST}"
+      header=0
+      continue
+    fi
+    [[ -z "${aline}" ]] && continue
+    local aclr="${_CLR_GRN}"
+    echo "${aline}" | grep -qE "Degraded|Unknown"    && aclr="${_CLR_RED}"
+    echo "${aline}" | grep -qE "Progressing"         && aclr="${_CLR_YLW}"
+    echo "${aline}" | grep -qE "OutOfSync|Missing"   && aclr="${_CLR_YLW}"
+    echo -e "${aclr}${aline}${_CLR_RST}"
+  done <<< "${apps}"
   echo ""
 
-  # Highlight degraded / out-of-sync apps
+  # Summary of degraded apps
   local degraded
   degraded=$(kubectl get applications.argoproj.io -n argocd --no-headers \
     -o custom-columns='NAME:.metadata.name,HEALTH:.status.health.status,SYNC:.status.sync.status' \
-    2>/dev/null | grep -vE "(Healthy|Synced)" || true)
+    2>/dev/null | grep -vE "(Healthy.*Synced|^NAME)" || true)
   if [[ -n "${degraded}" ]]; then
     echo ""
     log_warn "Degraded or out-of-sync applications:"
-    echo "${degraded}"
+    while IFS= read -r dline; do
+      [[ -z "${dline}" ]] && continue
+      echo -e "  ${_CLR_YLW}${dline}${_CLR_RST}"
+    done <<< "${degraded}"
+  else
+    log_success "All ArgoCD applications are Healthy and Synced"
   fi
   echo ""
 }
@@ -389,61 +586,87 @@ dump_json() {
   local tmpdir
   tmpdir=$(mktemp -d)
 
-  # RGDs
   kubectl get resourcegraphdefinitions.kro.run -A -o json \
-    > "${tmpdir}/rgds.json" 2>/dev/null || echo '{}' > "${tmpdir}/rgds.json"
+    > "${tmpdir}/rgds.json" 2>/dev/null || echo '{"items":[]}' > "${tmpdir}/rgds.json"
 
-  # ArgoCD apps
   kubectl get applications.argoproj.io -n argocd -o json \
-    > "${tmpdir}/argocd.json" 2>/dev/null || echo '{}' > "${tmpdir}/argocd.json"
+    > "${tmpdir}/argocd.json" 2>/dev/null || echo '{"items":[]}' > "${tmpdir}/argocd.json"
 
-  # ACK resources from all relevant namespaces
-  local ns_list=("gen3-foundation" "gen3-database" "gen3-compute" "gen3-dev-test"
-                 "kro-test-sg" "kro-test-sg-full" "kro-test-crossrgd" "kro-test-crossrgd-consumer")
+  local ns_list
+  readarray -t ns_list < <(discover_namespaces)
 
-  local ack_types=(
-    "vpcs.ec2.services.k8s.aws"
-    "internetgateways.ec2.services.k8s.aws"
-    "elasticipaddresses.ec2.services.k8s.aws"
-    "natgateways.ec2.services.k8s.aws"
-    "routetables.ec2.services.k8s.aws"
-    "subnets.ec2.services.k8s.aws"
-    "securitygroups.ec2.services.k8s.aws"
-    "keys.kms.services.k8s.aws"
-    "buckets.s3.services.k8s.aws"
-    "dbsubnetgroups.rds.services.k8s.aws"
-    "dbclusters.rds.services.k8s.aws"
-    "dbinstances.rds.services.k8s.aws"
-    "roles.iam.services.k8s.aws"
-    "policies.iam.services.k8s.aws"
-    "secrets.secretsmanager.services.k8s.aws"
-  )
-
-  local combined_ack='{"items":[]}'
-  for ns in "${ns_list[@]}"; do
-    kubectl get namespace "${ns}" &>/dev/null || continue
-    for restype in "${ack_types[@]}"; do
-      local items
-      items=$(kubectl get "${restype}" -n "${ns}" -o json 2>/dev/null || echo '{"items":[]}')
-      combined_ack=$(echo "${combined_ack}" "${items}" \
-        | python3 -c "import sys,json; a,b=json.load(sys.stdin).items() if False else [json.loads(l) for l in sys.stdin.read().split('\n') if l.strip()]; a['items']+=b.get('items',[]); print(json.dumps(a))" \
-        2>/dev/null || echo "${combined_ack}")
-    done
+  local ack_types=()
+  for entry in "${ACK_RESTYPES[@]}"; do
+    IFS='|' read -r restype _ <<< "${entry}"
+    ack_types+=("${restype}")
   done
 
+  # Collect all ACK resources into one JSON array
+  python3 - "${tmpdir}" "${ns_list[@]+"${ns_list[@]}"}" <<PYEOF
+import subprocess, json, sys, os
+
+tmpdir = sys.argv[1]
+ns_list = sys.argv[2:]
+ack_types = [
+    "vpcs.ec2.services.k8s.aws",
+    "internetgateways.ec2.services.k8s.aws",
+    "elasticipaddresses.ec2.services.k8s.aws",
+    "natgateways.ec2.services.k8s.aws",
+    "routetables.ec2.services.k8s.aws",
+    "subnets.ec2.services.k8s.aws",
+    "securitygroups.ec2.services.k8s.aws",
+    "keys.kms.services.k8s.aws",
+    "buckets.s3.services.k8s.aws",
+    "queues.sqs.services.k8s.aws",
+    "dbsubnetgroups.rds.services.k8s.aws",
+    "dbclusters.rds.services.k8s.aws",
+    "dbinstances.rds.services.k8s.aws",
+    "domains.opensearchservice.services.k8s.aws",
+    "roles.iam.services.k8s.aws",
+    "policies.iam.services.k8s.aws",
+    "openidconnectproviders.iam.services.k8s.aws",
+    "secrets.secretsmanager.services.k8s.aws",
+]
+all_items = []
+for ns in ns_list:
+    for rt in ack_types:
+        r = subprocess.run(
+            ["kubectl","get",rt,"-n",ns,"-o","json"],
+            capture_output=True, text=True
+        )
+        if r.returncode == 0:
+            try:
+                all_items += json.loads(r.stdout).get("items",[])
+            except Exception:
+                pass
+
+rgds   = json.load(open(os.path.join(tmpdir,"rgds.json")))
+argocd = json.load(open(os.path.join(tmpdir,"argocd.json")))
+
+import datetime
+report = {
+    "generatedAt": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "cluster": "gen3-local",
+    "rgds": rgds.get("items",[]),
+    "argoCDApps": argocd.get("items",[]),
+    "ackResources": all_items,
+}
+PYEOF
+
   python3 -c "
-import json, sys
-rgds    = json.load(open('${tmpdir}/rgds.json'))
-argocd  = json.load(open('${tmpdir}/argocd.json'))
-report  = {
+import json, sys, os, datetime
+tmpdir = '${tmpdir}'
+rgds   = json.load(open(os.path.join(tmpdir,'rgds.json')))
+argocd = json.load(open(os.path.join(tmpdir,'argocd.json')))
+report = {
   'generatedAt': '$(date -u +%Y-%m-%dT%H:%M:%SZ)',
   'cluster':     '${KIND_CLUSTER_NAME:-gen3-local}',
-  'rgds':        rgds.get('items', []),
-  'argoCDApps':  argocd.get('items', []),
+  'rgds':        rgds.get('items',[]),
+  'argoCDApps':  argocd.get('items',[]),
 }
-with open('${JSON_OUT}', 'w') as f:
+with open('${JSON_OUT}','w') as f:
   json.dump(report, f, indent=2)
-print('  Wrote', '${JSON_OUT}')
+print('  Wrote ${JSON_OUT}')
 " 2>/dev/null || log_warn "JSON dump failed (python3 required)"
 
   rm -rf "${tmpdir}"
@@ -454,12 +677,13 @@ print('  Wrote', '${JSON_OUT}')
 # ─────────────────────────────────────────────────────────────────────────────
 main() {
   log_banner "gen3-dev KRO Status Report — $(date '+%Y-%m-%d %H:%M:%S %Z')"
-  echo "  Cluster:    ${KIND_CLUSTER_NAME:-gen3-local}"
-  echo "  KUBECONFIG: ${KUBECONFIG:-~/.kube/config}"
-  echo "  Filter:     ns=${FILTER_NS:-*}  instance=${FILTER_INSTANCE:-*}  section=${FILTER_SECTION:-all}"
+  echo -e "  ${_CLR_WHT}Cluster:${_CLR_RST}    ${KIND_CLUSTER_NAME:-gen3-local}"
+  echo -e "  ${_CLR_WHT}KUBECONFIG:${_CLR_RST} ${KUBECONFIG:-~/.kube/config}"
+  echo -e "  ${_CLR_WHT}Addons:${_CLR_RST}     ${ADDONS_FILE}"
+  echo -e "  ${_CLR_WHT}Instances:${_CLR_RST}  ${INFRA_FILE}"
+  echo -e "  ${_CLR_WHT}Filter:${_CLR_RST}     ns=${FILTER_NS:-*}  instance=${FILTER_INSTANCE:-*}  section=${FILTER_SECTION:-all}"
   echo ""
 
-  # Verify cluster is reachable
   if ! kubectl cluster-info &>/dev/null; then
     log_error "Cannot reach cluster. Is the Kind cluster running?"
     log_info  "Run: docker start gen3-local-control-plane"
@@ -485,6 +709,9 @@ main() {
 
   sep
   log_success "Report complete."
+  if [[ -n "${FILE_OUT}" ]]; then
+    log_info "Output written to: ${FILE_OUT}"
+  fi
 }
 
 main "$@"

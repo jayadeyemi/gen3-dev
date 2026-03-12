@@ -6,7 +6,7 @@
 **/*.pem
 **/variables.env
 **/secrets/*
-# .github is NOT ignored — copilot-instructions and .instructions.md files live there
+.github/**
 **/secrets.yaml
 # old-*
 **/old*/*
@@ -41,7 +41,6 @@ package-lock.json
 # Ignore hcl lock files
 /**/*.hcl
 /**/*.lock.info
-
 # Local environment (generated at runtime)
 config/local.env
 .container-env

@@ -301,3 +301,65 @@ ack-secretsmanager:
       kind: Deployment
       jsonPointers:
         - /spec/template/spec/containers/0/env
+
+ack-opensearchservice:
+  enabled: true
+  namespace: ack
+  chartName: opensearchservice-chart
+  chartRepository: "public.ecr.aws/aws-controllers-k8s"
+  defaultVersion: "1.2.2"
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "1"
+  selector:
+    matchExpressions:
+      - key: ack_management_mode
+        operator: In
+        values: ['self_managed']
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+  valuesObject:
+    serviceAccount:
+      create: true
+      name: "ack-opensearchservice-controller"
+    aws:
+      region: '{{.metadata.annotations.aws_region}}'
+    enableCARM: false
+    featureGates:
+      IAMRoleSelector: "true"
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/env
+
+ack-sqs:
+  enabled: true
+  namespace: ack
+  chartName: sqs-chart
+  chartRepository: "public.ecr.aws/aws-controllers-k8s"
+  defaultVersion: "1.4.1"
+  annotationsAppSet:
+    argocd.argoproj.io/sync-wave: "1"
+  selector:
+    matchExpressions:
+      - key: ack_management_mode
+        operator: In
+        values: ['self_managed']
+      - key: fleet_member
+        operator: In
+        values: ['control-plane']
+  valuesObject:
+    serviceAccount:
+      create: true
+      name: "ack-sqs-controller"
+    aws:
+      region: '{{.metadata.annotations.aws_region}}'
+    enableCARM: false
+    featureGates:
+      IAMRoleSelector: "true"
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/env

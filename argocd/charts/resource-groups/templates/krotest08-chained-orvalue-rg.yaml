@@ -1,0 +1,129 @@
+# KRO Capability Test 8: Chained orValue() with includeWhen Variants
+#
+# Tests the pattern used by Compute2's computeBridge: referencing fields
+# from two mutually-exclusive resources via chained orValue().
+#
+# Pattern under test:
+#   ${resourceA.data.?field.orValue(resourceB.data.?field.orValue("fallback"))}
+#
+# Where resourceA and resourceB have opposite includeWhen conditions
+# (so exactly one exists at any time).
+#
+# Validates:
+#   - Chained orValue() across excluded/included resources
+#   - Status field using chained orValue() from mutually exclusive resources
+#   - Bridge ConfigMap referencing both variants via orValue()
+#
+# This test uses pure K8s ConfigMaps (no AWS cost).
+
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: kro-chained-orvalue-test
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: KroChainedOrValueTest
+    spec:
+      name: string | required=true
+      namespace: string | default="kro-test"
+
+      # This boolean controls which variant is created (like eksAutoMode)
+      useVariantB: boolean | default=false
+
+    status:
+      # Chained orValue() in status — references whichever variant exists
+      chainedValue: ${variantA.data.?result.orValue(variantB.data.?result.orValue("neither"))}
+      chainedEndpoint: ${variantA.data.?endpoint.orValue(variantB.data.?endpoint.orValue("no-endpoint"))}
+      activeVariant: ${variantA.data.?variant-name.orValue(variantB.data.?variant-name.orValue("unknown"))}
+
+  resources:
+    # ================================================================
+    # Layer 0: Namespace
+    # ================================================================
+    - id: targetNamespace
+      readyWhen:
+        - ${targetNamespace.status.phase == "Active"}
+      template:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: ${schema.spec.namespace}
+          labels:
+            app.kubernetes.io/managed-by: kro
+            test-suite: kro-capabilities
+            test-name: chained-orvalue
+
+    # ================================================================
+    # Variant A: Created when useVariantB=false (default)
+    # ================================================================
+    - id: variantA
+      includeWhen:
+        - ${schema.spec.useVariantB == false}
+      readyWhen:
+        - ${variantA.metadata.?name.orValue('null') != 'null'}
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: ${schema.spec.name}-variant-a
+          namespace: ${targetNamespace.metadata.name}
+          labels:
+            test-suite: kro-capabilities
+            test-name: chained-orvalue
+            variant: "a"
+        data:
+          result: "variant-a-active"
+          endpoint: "https://variant-a.example.com"
+          variant-name: "VariantA"
+          detail: "This is the standard variant"
+
+    # ================================================================
+    # Variant B: Created when useVariantB=true
+    # ================================================================
+    - id: variantB
+      includeWhen:
+        - ${schema.spec.useVariantB == true}
+      readyWhen:
+        - ${variantB.metadata.?name.orValue('null') != 'null'}
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: ${schema.spec.name}-variant-b
+          namespace: ${targetNamespace.metadata.name}
+          labels:
+            test-suite: kro-capabilities
+            test-name: chained-orvalue
+            variant: "b"
+        data:
+          result: "variant-b-active"
+          endpoint: "https://variant-b.example.com"
+          variant-name: "VariantB"
+          detail: "This is the auto-mode variant"
+
+    # ================================================================
+    # Bridge: Uses chained orValue() — mirrors Compute2's computeBridge
+    # ================================================================
+    - id: bridgeConfig
+      readyWhen:
+        - ${bridgeConfig.metadata.?name.orValue('null') != 'null'}
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: ${schema.spec.name}-bridge
+          namespace: ${targetNamespace.metadata.name}
+          labels:
+            test-suite: kro-capabilities
+            test-name: chained-orvalue
+            gen3.io/bridge: "true"
+        data:
+          # Chained orValue() — exactly mirrors Compute2's bridge pattern
+          active-result: ${variantA.data.?result.orValue(variantB.data.?result.orValue("loading"))}
+          active-endpoint: ${variantA.data.?endpoint.orValue(variantB.data.?endpoint.orValue("loading"))}
+          active-variant: ${variantA.data.?variant-name.orValue(variantB.data.?variant-name.orValue("loading"))}
+          active-detail: ${variantA.data.?detail.orValue(variantB.data.?detail.orValue("loading"))}

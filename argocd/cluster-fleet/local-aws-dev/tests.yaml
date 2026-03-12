@@ -265,3 +265,29 @@ instances: {}
   #     project: gen3-dev
   #     producerBridgeName: crossrgd-prod-crossrgd-bridge
   #     producerNamespace: kro-test-crossrgd
+
+  # ── Test 08: chained orValue() with includeWhen variants ──────────────────
+  # Validates: Chained orValue() pattern used in Compute2's computeBridge.
+  # Two mutually exclusive ConfigMaps (variant A or B), bridge references both.
+  # Pure K8s, zero AWS cost.
+  # RGD: krotest08-chained-orvalue-rg.yaml  |  Kind: KroChainedOrValueTest
+
+  # kro-chained-orvalue-a:
+  #   kind: KroChainedOrValueTest
+  #   namespace: kro-test-chained-orvalue
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: chained-variant-a
+  #     namespace: kro-test-chained-orvalue
+  #     useVariantB: false
+
+  # kro-chained-orvalue-b:
+  #   kind: KroChainedOrValueTest
+  #   namespace: kro-test-chained-orvalue-b
+  #   syncWave: "15"
+  #   environment: local
+  #   spec:
+  #     name: chained-variant-b
+  #     namespace: kro-test-chained-orvalue-b
+  #     useVariantB: true

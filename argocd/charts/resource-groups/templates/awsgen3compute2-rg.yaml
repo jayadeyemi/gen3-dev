@@ -72,7 +72,6 @@ spec:
       # Compute
       eksClusterARN: ${eksClusterStandard.status.?ackResourceMetadata.?arn.orValue(eksClusterAutoMode.status.?ackResourceMetadata.?arn.orValue("loading"))}
       eksClusterEndpoint: ${eksClusterStandard.status.?endpoint.orValue(eksClusterAutoMode.status.?endpoint.orValue("loading"))}
-      eksClusterName: ${schema.spec.name}-eks
 
   resources:
   # ====================================================================

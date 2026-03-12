@@ -50,8 +50,8 @@ spec:
       auroraMasterUsername: string | default="postgres"
       masterPasswordSecretName: string | required=true
       masterPasswordSecretKey: string | default="password"
-      auroraMinCapacity: string | default="0.5"
-      auroraMaxCapacity: string | default="4"
+      auroraMinCapacity: number | default=0.5
+      auroraMaxCapacity: number | default=4
 
       # ── Options ──────────────────────────────────────────────────
       enableReadReplica: boolean | default=false

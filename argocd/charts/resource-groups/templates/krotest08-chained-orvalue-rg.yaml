@@ -36,10 +36,10 @@ spec:
       # This boolean controls which variant is created (like eksAutoMode)
       useVariantB: boolean | default=false
 
-    # NOTE: No status fields that reference excluded resources.
-    # Status references only always-present resources or resources
-    # that share the same includeWhen condition as the referencing field.
-    status: {}
+    # NOTE: Status references ONLY always-present resources.
+    # Never reference excluded resources here — KRO drops them silently.
+    status:
+      ready: ${targetNamespace.status.phase}
 
   resources:
     # ================================================================

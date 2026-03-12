@@ -135,25 +135,25 @@ spec:
                   hostname: ${schema.spec.hostname}
                   environment: ${schema.spec.environment}
                 fence:
-                  enabled: ${schema.spec.fenceEnabled}
+                  enabled: ${string(schema.spec.fenceEnabled)}
                 audit:
-                  enabled: ${schema.spec.auditEnabled}
+                  enabled: ${string(schema.spec.auditEnabled)}
                 hatchery:
-                  enabled: ${schema.spec.hatcheryEnabled}
+                  enabled: ${string(schema.spec.hatcheryEnabled)}
                 manifestservice:
-                  enabled: ${schema.spec.manifestserviceEnabled}
+                  enabled: ${string(schema.spec.manifestserviceEnabled)}
                 indexd:
-                  enabled: ${schema.spec.indexdEnabled}
+                  enabled: ${string(schema.spec.indexdEnabled)}
                 metadata:
-                  enabled: ${schema.spec.metadataEnabled}
+                  enabled: ${string(schema.spec.metadataEnabled)}
                 peregrin:
-                  enabled: ${schema.spec.peregrinEnabled}
+                  enabled: ${string(schema.spec.peregrinEnabled)}
                 sheepdog:
-                  enabled: ${schema.spec.sheepdogEnabled}
+                  enabled: ${string(schema.spec.sheepdogEnabled)}
                 guppy:
-                  enabled: ${schema.spec.guppyEnabled}
+                  enabled: ${string(schema.spec.guppyEnabled)}
                 portal:
-                  enabled: ${schema.spec.portalEnabled}
+                  enabled: ${string(schema.spec.portalEnabled)}
           destination:
             server: ${computeBridge.data['eks-cluster-endpoint']}
             namespace: ${schema.spec.name}

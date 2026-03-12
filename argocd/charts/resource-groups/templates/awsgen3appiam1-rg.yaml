@@ -426,7 +426,7 @@ spec:
           queueName: ${schema.spec.name}-audit-sqs
           messageRetentionPeriod: "${schema.spec.sqsMessageRetention}"
           visibilityTimeout: "${schema.spec.sqsVisibilityTimeout}"
-          sqsManagedSSEEnabled: true
+          sqsManagedSSEEnabled: "true"
           tags:
             Name: ${schema.spec.name}-audit-sqs
             Environment: ${schema.spec.environment}
@@ -454,7 +454,7 @@ spec:
           queueName: ${schema.spec.name}-ssjdispatcher-sqs
           messageRetentionPeriod: "${schema.spec.sqsMessageRetention}"
           visibilityTimeout: "${schema.spec.sqsVisibilityTimeout}"
-          sqsManagedSSEEnabled: true
+          sqsManagedSSEEnabled: "true"
           tags:
             Name: ${schema.spec.name}-ssjdispatcher-sqs
             Environment: ${schema.spec.environment}

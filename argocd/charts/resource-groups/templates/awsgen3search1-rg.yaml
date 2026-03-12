@@ -48,7 +48,7 @@ spec:
       createBridgeSecret: boolean | default=true
 
     status:
-      openSearchEndpoint: ${openSearchDomain.status.?endpoint.orValue("loading")}
+      openSearchEndpoint: ${openSearchDomain.status.?endpoints.?vpc.orValue("loading")}
       openSearchDomainARN: ${openSearchDomain.status.?ackResourceMetadata.?arn.orValue("loading")}
 
   # ═══════════════════════════════════════════════════════════════════════
@@ -157,5 +157,5 @@ spec:
             gen3.io/tier: search
             gen3.io/bridge: "true"
         data:
-          opensearch-endpoint: ${openSearchDomain.status.?endpoint.orValue("loading")}
+          opensearch-endpoint: ${openSearchDomain.status.?endpoints.?vpc.orValue("loading")}
           opensearch-domain-arn: ${openSearchDomain.status.?ackResourceMetadata.?arn.orValue("loading")}

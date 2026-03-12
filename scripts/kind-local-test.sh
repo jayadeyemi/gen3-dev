@@ -90,9 +90,11 @@ declare -A ACK_CONTROLLERS=(
   [eks]="1.11.1"
   [iam]="1.6.1"
   [kms]="1.2.1"
+  [opensearchservice]="1.2.2"
   [rds]="1.7.6"
   [s3]="1.3.1"
   [secretsmanager]="1.2.1"
+  [sqs]="1.4.1"
 )
 
 # AWS credential state (set by validate_credentials)

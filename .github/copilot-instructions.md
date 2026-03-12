@@ -40,9 +40,11 @@ change.
 | eks | 1.11.1 | `eks.services.k8s.aws` |
 | iam | 1.6.1 | `iam.services.k8s.aws` |
 | kms | 1.2.1 | `kms.services.k8s.aws` |
+| opensearchservice | 1.2.2 | `opensearchservice.services.k8s.aws` |
 | rds | 1.7.6 | `rds.services.k8s.aws` |
 | s3 | 1.3.1 | `s3.services.k8s.aws` |
 | secretsmanager | 1.2.1 | `secretsmanager.services.k8s.aws` |
+| sqs | 1.4.1 | `sqs.services.k8s.aws` |
 
 ## Directory Layout
 
@@ -170,9 +172,9 @@ RGDs use versioned naming: modular tier graphs use
 | 1 | Infra RGD | awsgen3database2 | AwsGen3Database2 | ✅ Built (thin) | databasePrepBridge | ~$45-350/mo |
 | 2 | Infra RGD | awsgen3search1 | AwsGen3Search1 | ✅ Built (thin) | searchPrepBridge + foundationBridge | ~$30-200/mo |
 | 3 | Infra RGD | awsgen3compute2 | AwsGen3Compute2 | ✅ Built (Standard/Auto) | computePrepBridge + foundationBridge | ~$350/mo |
-| 4 | Infra RGD | awsgen3appiam1 | AwsGen3AppIAM1 | ⬜ Planned | Foundation + Compute + Database bridges | ~$5/mo |
-| 5 | Helm App | gen3-helm | — | ⬜ Planned | Bridges from active infra tiers | varies |
-| 6 | Helm App | LGTM stack | — | ⬜ Planned | Foundation + Compute | ~$0-50/mo |
+| 4 | Infra RGD | awsgen3appiam1 | AwsGen3AppIAM1 | ✅ Built | Foundation + Compute bridges | ~$5/mo |
+| 5 | App RGD | awsgen3helm1 | AwsGen3Helm1 | ✅ Built | Foundation + Compute bridges | ~$0 (pods) |
+| 6 | App RGD | awsgen3observability1 | AwsGen3Observability1 | ✅ Built | Compute bridge | ~$0-50/mo |
 | 7 | Infra RGD | awsgen3advanced1 | AwsGen3Advanced1 | ⬜ Future | foundationBridge | ~$0-200/mo |
 
 Foundation2 absorbs ALL prep infrastructure (SGs, IAM roles, DB subnets,
@@ -181,8 +183,9 @@ KMS keys) behind feature flags (`databaseEnabled`, `computeEnabled`,
 Creates up to 4 bridge ConfigMaps: `foundationBridge` (always) +
 `databasePrepBridge`, `computePrepBridge`, `searchPrepBridge` (conditional).
 
-Tiers 5 and 6 are Helm-deployed ArgoCD Applications, not KRO RGD instances.
-Legacy monolithic and v1 modular RGDs have been removed.
+Tiers 5 and 6 are RGD-managed ArgoCD Applications that deploy Helm charts
+onto the spoke EKS cluster. Legacy monolithic and v1 modular RGDs have been
+removed.
 
 ## KRO Capability Tests
 
@@ -200,6 +203,7 @@ and are ArgoCD-managed — no manual `kubectl apply`. Instances are declared in
 | 6 | `KroTest06SgConditional` | `krotest06-sg-conditional-rg.yaml` | `kro-sg-base-only`, `kro-sg-all-features` | ACK EC2 | Yes |
 | 7a | `KroTest07Producer` | `krotest07a-cross-rgd-producer-rg.yaml` | `kro-crossrgd-producer` | ACK EC2 | Yes |
 | 7b | `KroTest07Consumer` | `krotest07b-cross-rgd-consumer-rg.yaml` | `kro-crossrgd-consumer` | ACK EC2 | Yes |
+| 8 | `KroChainedOrValueTest` | `krotest08-chained-orvalue-rg.yaml` | `kro-chained-orvalue-*` | ConfigMaps | No |
 
 **Key finding (Test 6)**: KRO cannot add conditional entries within a single
 `SecurityGroup.spec.ingressRules` or `RouteTable.spec.routes` array. Use
@@ -208,6 +212,12 @@ and are ArgoCD-managed — no manual `kubectl apply`. Instances are declared in
 **Key finding (Test 7)**: Cross-RGD status values flow via bridge ConfigMap +
 `externalRef`. Real AWS SG-to-SG rules use `spec.ingressRules[].userIDGroupPairs[].groupID`
 set to `sg.status.id` read from the bridge.
+
+**Key finding (Test 8)**: KRO v0.8.5 silently drops ANY expression/resource that
+references an excluded (`includeWhen=false`) resource — even with `.?` optional
+chaining + `.orValue()`. **Correct pattern**: conditional duplicate resources with
+SAME Kubernetes name but opposite `includeWhen`, each referencing only co-included
+resources. Validated with both variants producing correct bridge ConfigMaps.
 
 ## Relationship to gen3-kro
 

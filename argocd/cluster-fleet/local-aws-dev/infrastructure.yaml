@@ -19,13 +19,13 @@
 #   Wave  1:  ACK controllers
 #   Wave 10:  RGDs
 #   Wave 15:  Tier 0 instances (Foundation)
-#   Wave 20:  Tier 1 instances (Database — depends on Foundation bridge)
-#   Wave 25:  Tier 2 instances (Search  — depends on Foundation bridge)
-#   Wave 25:  Tier 3 instances (Compute — depends on Foundation bridge)
-#   Wave 30:  Tier 4 instances (AppIAM  — depends on Foundation + Compute + Database)
-#   Wave 35:  Tier 5 (Application — gen3-helm ArgoCD Application, not an RGD)
-#   Wave 35:  Tier 6 (Observability — LGTM Helm charts, not RGDs)
-#   Wave 30:  Tier 7 instances (Advanced — depends on Foundation, optional)
+#   Wave 20:  Tier 1 instances (Database     — depends on Foundation bridge only)
+#   Wave 20:  Tier 2 instances (Search       — depends on Foundation bridge only)
+#   Wave 20:  Tier 3 instances (Compute      — depends on Foundation bridge only)
+#   Wave 25:  Tier 4 instances (AppIAM       — depends on Foundation + Compute bridge)
+#   Wave 25:  Tier 5 (Application            — depends on Foundation + Compute bridge)
+#   Wave 25:  Tier 6 (Observability          — depends on Compute bridge only)
+#   Wave 30:  Tier 7 instances (Advanced     — depends on Foundation, optional)
 #
 # Tier architecture: see outputs/plans/02-modular-rgd-design.md
 #
@@ -145,7 +145,7 @@ instances: {}
   # spoke1-compute:
   #   kind: AwsGen3Compute2
   #   namespace: spoke1
-  #   syncWave: "25"
+  #   syncWave: "20"
   #   environment: local
   #   spec:
   #     name: spoke1
@@ -189,7 +189,7 @@ instances: {}
   # spoke1-search:
   #   kind: AwsGen3Search1
   #   namespace: spoke1
-  #   syncWave: "25"
+  #   syncWave: "20"
   #   environment: local
   #   spec:
   #     name: spoke1
@@ -224,7 +224,7 @@ instances: {}
   # spoke1-appiam:
   #   kind: AwsGen3AppIAM1
   #   namespace: spoke1
-  #   syncWave: "30"
+  #   syncWave: "25"
   #   environment: local
   #   spec:
   #     name: spoke1
@@ -260,7 +260,7 @@ instances: {}
   # spoke1-gen3helm:
   #   kind: AwsGen3Helm1
   #   namespace: spoke1
-  #   syncWave: "35"
+  #   syncWave: "25"
   #   environment: local
   #   spec:
   #     name: spoke1
@@ -301,7 +301,7 @@ instances: {}
   # spoke1-observability:
   #   kind: AwsGen3Observability1
   #   namespace: spoke1
-  #   syncWave: "35"
+  #   syncWave: "25"
   #   environment: local
   #   spec:
   #     name: spoke1

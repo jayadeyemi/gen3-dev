@@ -50,8 +50,8 @@ spec:
       auroraMasterUsername: string | default="postgres"
       masterPasswordSecretName: string | required=true
       masterPasswordSecretKey: string | default="password"
-      auroraMinCapacity: number | default=0.5
-      auroraMaxCapacity: number | default=4
+      auroraMinCapacity: string | default="0.5"
+      auroraMaxCapacity: string | default="4"
 
       # ── Options ──────────────────────────────────────────────────
       enableReadReplica: boolean | default=false
@@ -124,8 +124,8 @@ spec:
           storageEncrypted: true
           kmsKeyID: ${databasePrepBridge.data['database-key-arn']}
           serverlessV2ScalingConfiguration:
-            minCapacity: ${schema.spec.auroraMinCapacity}
-            maxCapacity: ${schema.spec.auroraMaxCapacity}
+            minCapacity: ${double(schema.spec.auroraMinCapacity)}
+            maxCapacity: ${double(schema.spec.auroraMaxCapacity)}
           backupRetentionPeriod: 7
           enableCloudwatchLogsExports:
             - postgresql

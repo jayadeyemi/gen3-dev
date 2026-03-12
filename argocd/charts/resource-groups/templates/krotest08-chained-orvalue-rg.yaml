@@ -38,7 +38,7 @@ spec:
       # Chained orValue() in status — references whichever variant exists
       chainedValue: ${variantA.data.?result.orValue(variantB.data.?result.orValue("neither"))}
       chainedEndpoint: ${variantA.data.?endpoint.orValue(variantB.data.?endpoint.orValue("no-endpoint"))}
-      activeVariant: ${variantA.data.?variant-name.orValue(variantB.data.?variant-name.orValue("unknown"))}
+      activeVariant: ${variantA.data.?variantName.orValue(variantB.data.?variantName.orValue("unknown"))}
 
   resources:
     # ================================================================
@@ -78,7 +78,7 @@ spec:
         data:
           result: "variant-a-active"
           endpoint: "https://variant-a.example.com"
-          variant-name: "VariantA"
+          variantName: "VariantA"
           detail: "This is the standard variant"
 
     # ================================================================
@@ -102,7 +102,7 @@ spec:
         data:
           result: "variant-b-active"
           endpoint: "https://variant-b.example.com"
-          variant-name: "VariantB"
+          variantName: "VariantB"
           detail: "This is the auto-mode variant"
 
     # ================================================================
@@ -125,5 +125,5 @@ spec:
           # Chained orValue() — exactly mirrors Compute2's bridge pattern
           active-result: ${variantA.data.?result.orValue(variantB.data.?result.orValue("loading"))}
           active-endpoint: ${variantA.data.?endpoint.orValue(variantB.data.?endpoint.orValue("loading"))}
-          active-variant: ${variantA.data.?variant-name.orValue(variantB.data.?variant-name.orValue("loading"))}
+          active-variant: ${variantA.data.?variantName.orValue(variantB.data.?variantName.orValue("loading"))}
           active-detail: ${variantA.data.?detail.orValue(variantB.data.?detail.orValue("loading"))}

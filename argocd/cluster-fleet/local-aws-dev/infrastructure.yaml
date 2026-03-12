@@ -34,7 +34,7 @@
 # Deploy in order: Foundation → Database → Search → Compute.
 # ─────────────────────────────────────────────────────────────────────────────
 
-instances: {}
+instances:
 
   # ── AwsGen3Foundation2 — Tier 0: Foundation-heavy (~$37/mo) ──────────────
   # 31 resources (max): VPC + gateways + subnets + route tables + KMS + S3
@@ -44,53 +44,53 @@ instances: {}
   # Uses 10.1.0.0/16 CIDR.
   # RGD: awsgen3foundation2-rg.yaml
 
-  # spoke1-foundation:
-  #   kind: AwsGen3Foundation2
-  #   namespace: spoke1-foundation
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: spoke1
-  #     namespace: spoke1-foundation
-  #     region: us-east-1
-  #     environment: local
-  #     project: gen3-dev
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-  #
-  #     # Network
-  #     vpcCIDR: "10.1.0.0/16"
-  #     publicSubnetCIDRs:
-  #       - "10.1.240.0/24"
-  #       - "10.1.241.0/24"
-  #     privateSubnetCIDRs:
-  #       - "10.1.0.0/20"
-  #       - "10.1.16.0/20"
-  #     availabilityZones:
-  #       - "us-east-1a"
-  #       - "us-east-1b"
-  #
-  #     # Storage (globally unique S3 bucket names)
-  #     loggingBucketName: gen3-spoke1-logging
-  #     dataBucketName: gen3-spoke1-data
-  #     uploadBucketName: gen3-spoke1-upload
-  #
-  #     # KMS
-  #     kmsKeyDescription: spoke1 foundation encryption key
-  #
-  #     # Feature flags — control conditional resource groups
-  #     databaseEnabled: true        # DB subnets, DB RT, DB subnet group, DB KMS, Aurora SG
-  #     computeEnabled: true         # EKS SG, Cluster IAM Role (6 policies), Node IAM Role (4 policies)
-  #     searchEnabled: false         # Search KMS, OpenSearch SG
-  #
-  #     # Database prep (only when databaseEnabled: true)
-  #     dbSubnetCIDRs:
-  #       - "10.1.32.0/24"
-  #       - "10.1.33.0/24"
-  #
-  #     # Bridge (always creates foundationBridge; conditionally creates
-  #     # databasePrepBridge, computePrepBridge, searchPrepBridge)
-  #     createBridgeSecret: true
+  spoke1-foundation:
+    kind: AwsGen3Foundation2
+    namespace: spoke1
+    syncWave: "15"
+    environment: local
+    spec:
+      name: spoke1
+      namespace: spoke1
+      region: us-east-1
+      environment: local
+      project: gen3-dev
+      adoptionPolicy: adopt-or-create
+      deletionPolicy: delete
+
+      # Network
+      vpcCIDR: "10.1.0.0/16"
+      publicSubnetCIDRs:
+        - "10.1.240.0/24"
+        - "10.1.241.0/24"
+      privateSubnetCIDRs:
+        - "10.1.0.0/20"
+        - "10.1.16.0/20"
+      availabilityZones:
+        - "us-east-1a"
+        - "us-east-1b"
+
+      # Storage (globally unique S3 bucket names)
+      loggingBucketName: gen3-spoke1-logging
+      dataBucketName: gen3-spoke1-data
+      uploadBucketName: gen3-spoke1-upload
+
+      # KMS
+      kmsKeyDescription: spoke1 foundation encryption key
+
+      # Feature flags — control conditional resource groups
+      databaseEnabled: true        # DB subnets, DB RT, DB subnet group, DB KMS, Aurora SG
+      computeEnabled: true         # EKS SG, Cluster IAM Role (6 policies), Node IAM Role (4 policies)
+      searchEnabled: false         # Search KMS, OpenSearch SG
+
+      # Database prep (only when databaseEnabled: true)
+      dbSubnetCIDRs:
+        - "10.1.32.0/24"
+        - "10.1.33.0/24"
+
+      # Bridge (always creates foundationBridge; conditionally creates
+      # databasePrepBridge, computePrepBridge, searchPrepBridge)
+      createBridgeSecret: true
 
   # ── AwsGen3Database2 — Tier 1: Thin Database (Aurora only) ───────────────
   # PREREQUISITE: Foundation2 must have databaseEnabled: true.

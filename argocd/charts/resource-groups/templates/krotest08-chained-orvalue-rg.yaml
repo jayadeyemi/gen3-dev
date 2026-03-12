@@ -1,20 +1,22 @@
-# KRO Capability Test 8: Chained orValue() with includeWhen Variants
+# KRO Capability Test 8: Conditional Duplicate Bridge Pattern
 #
-# Tests the pattern used by Compute2's computeBridge: referencing fields
-# from two mutually-exclusive resources via chained orValue().
+# FINDING: KRO v0.8.5 silently drops resources and status fields that
+# reference excluded (includeWhen=false) resources — even with .? optional
+# chaining and .orValue() fallback. The .? operator handles missing FIELDS
+# on existing resources, NOT excluded resources.
 #
-# Pattern under test:
+# FAILED PATTERN (chained orValue across excluded resources):
 #   ${resourceA.data.?field.orValue(resourceB.data.?field.orValue("fallback"))}
+#   → Works ONLY when resourceA exists. If resourceA is excluded, the
+#     entire expression is silently dropped — both in status and templates.
 #
-# Where resourceA and resourceB have opposite includeWhen conditions
-# (so exactly one exists at any time).
+# CORRECT PATTERN (conditional duplicate bridge):
+#   Two identically-named ConfigMaps with opposite includeWhen conditions.
+#   Each references ONLY resources that share its includeWhen. Downstream
+#   consumers read the bridge by name (externalRef) — unaware of which
+#   variant produced it.
 #
-# Validates:
-#   - Chained orValue() across excluded/included resources
-#   - Status field using chained orValue() from mutually exclusive resources
-#   - Bridge ConfigMap referencing both variants via orValue()
-#
-# This test uses pure K8s ConfigMaps (no AWS cost).
+# This test validates the correct pattern using pure K8s (no AWS cost).
 
 apiVersion: kro.run/v1alpha1
 kind: ResourceGraphDefinition
@@ -34,11 +36,10 @@ spec:
       # This boolean controls which variant is created (like eksAutoMode)
       useVariantB: boolean | default=false
 
-    status:
-      # Chained orValue() in status — references whichever variant exists
-      chainedValue: ${variantA.data.?result.orValue(variantB.data.?result.orValue("neither"))}
-      chainedEndpoint: ${variantA.data.?endpoint.orValue(variantB.data.?endpoint.orValue("no-endpoint"))}
-      activeVariant: ${variantA.data.?variantName.orValue(variantB.data.?variantName.orValue("unknown"))}
+    # NOTE: No status fields that reference excluded resources.
+    # Status references only always-present resources or resources
+    # that share the same includeWhen condition as the referencing field.
+    status: {}
 
   resources:
     # ================================================================
@@ -106,11 +107,15 @@ spec:
           detail: "This is the auto-mode variant"
 
     # ================================================================
-    # Bridge: Uses chained orValue() — mirrors Compute2's computeBridge
+    # Bridge A: Conditional duplicate — produced when useVariantB=false
+    # Same ConfigMap name as Bridge B — only one ever exists.
+    # References ONLY variantA (which shares its includeWhen condition).
     # ================================================================
-    - id: bridgeConfig
+    - id: bridgeA
+      includeWhen:
+        - ${schema.spec.useVariantB == false}
       readyWhen:
-        - ${bridgeConfig.metadata.?name.orValue('null') != 'null'}
+        - ${bridgeA.metadata.?name.orValue('null') != 'null'}
       template:
         apiVersion: v1
         kind: ConfigMap
@@ -122,8 +127,33 @@ spec:
             test-name: chained-orvalue
             gen3.io/bridge: "true"
         data:
-          # Chained orValue() — exactly mirrors Compute2's bridge pattern
-          active-result: ${variantA.data.?result.orValue(variantB.data.?result.orValue("loading"))}
-          active-endpoint: ${variantA.data.?endpoint.orValue(variantB.data.?endpoint.orValue("loading"))}
-          active-variant: ${variantA.data.?variantName.orValue(variantB.data.?variantName.orValue("loading"))}
-          active-detail: ${variantA.data.?detail.orValue(variantB.data.?detail.orValue("loading"))}
+          active-result: ${variantA.data.result}
+          active-endpoint: ${variantA.data.endpoint}
+          active-variant: ${variantA.data.variantName}
+          active-detail: ${variantA.data.detail}
+
+    # ================================================================
+    # Bridge B: Conditional duplicate — produced when useVariantB=true
+    # Same ConfigMap name as Bridge A — only one ever exists.
+    # References ONLY variantB (which shares its includeWhen condition).
+    # ================================================================
+    - id: bridgeB
+      includeWhen:
+        - ${schema.spec.useVariantB == true}
+      readyWhen:
+        - ${bridgeB.metadata.?name.orValue('null') != 'null'}
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: ${schema.spec.name}-bridge
+          namespace: ${targetNamespace.metadata.name}
+          labels:
+            test-suite: kro-capabilities
+            test-name: chained-orvalue
+            gen3.io/bridge: "true"
+        data:
+          active-result: ${variantB.data.result}
+          active-endpoint: ${variantB.data.endpoint}
+          active-variant: ${variantB.data.variantName}
+          active-detail: ${variantB.data.detail}

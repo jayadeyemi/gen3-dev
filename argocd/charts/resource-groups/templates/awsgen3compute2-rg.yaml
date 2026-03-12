@@ -15,6 +15,7 @@
 #
 # Both variants share:
 #   - computeBridge: ConfigMap with EKS outputs for downstream tiers
+#     (uses CONDITIONAL DUPLICATE pattern — see krotest08 findings)
 #
 # PREREQUISITES:
 #   1. Foundation2 deployed with computeEnabled=true (creates computePrepBridge)
@@ -22,10 +23,9 @@
 # CROSS-TIER: Reads computePrepBridge (IAM roles, EKS SG) and
 # foundationBridge (VPC, subnets, platform key) via externalRef.
 #
-# NOTE on computeBridge: Uses chained orValue() to reference whichever cluster
-# variant was created. Since variants are mutually exclusive (eksAutoMode is
-# boolean), exactly one will exist. If KRO does not support cross-variant
-# orValue() chaining, use two conditional bridge ConfigMaps instead.
+# KRO LIMITATION (krotest08): KRO v0.8.5 cannot reference excluded resources,
+# even with .? optional chaining + .orValue() fallback. The bridge uses two
+# identically-named conditional ConfigMaps instead of chained orValue().
 
 apiVersion: kro.run/v1alpha1
 kind: ResourceGraphDefinition
@@ -69,9 +69,10 @@ spec:
       createBridgeSecret: boolean | default=true
 
     status:
-      # Compute
-      eksClusterARN: ${eksClusterStandard.status.?ackResourceMetadata.?arn.orValue(eksClusterAutoMode.status.?ackResourceMetadata.?arn.orValue("loading"))}
-      eksClusterEndpoint: ${eksClusterStandard.status.?endpoint.orValue(eksClusterAutoMode.status.?endpoint.orValue("loading"))}
+      # NOTE: Cannot reference excluded resources (even with orValue).
+      # Downstream tiers read the computeBridge ConfigMap instead.
+      # See krotest08 findings: KRO drops expressions referencing excluded resources.
+      ready: ${spokeNamespace.metadata.?name.orValue("loading")}
 
   resources:
   # ====================================================================
@@ -277,13 +278,19 @@ spec:
 
   # ====================================================================
   # BRIDGE: Compute Outputs ConfigMap (for downstream tiers)
+  # Uses CONDITIONAL DUPLICATE pattern — two identically-named ConfigMaps
+  # with opposite includeWhen. Only one is created per instance.
+  # KRO cannot reference excluded resources (even with orValue), so each
+  # bridge variant references only resources that share its includeWhen.
   # ====================================================================
 
-    - id: computeBridge
+    # ── Bridge: Standard Mode variant ────────────────────────────────
+    - id: computeBridgeStandard
       includeWhen:
+        - ${schema.spec.eksAutoMode == false}
         - ${schema.spec.createBridgeSecret == true}
       readyWhen:
-        - ${computeBridge.metadata.?name.orValue('null') != 'null'}
+        - ${computeBridgeStandard.metadata.?name.orValue('null') != 'null'}
       template:
         apiVersion: v1
         kind: ConfigMap
@@ -295,7 +302,30 @@ spec:
             gen3.io/tier: compute
             gen3.io/bridge: "true"
         data:
-          eks-cluster-arn: ${eksClusterStandard.status.?ackResourceMetadata.?arn.orValue(eksClusterAutoMode.status.?ackResourceMetadata.?arn.orValue("loading"))}
-          eks-cluster-endpoint: ${eksClusterStandard.status.?endpoint.orValue(eksClusterAutoMode.status.?endpoint.orValue("loading"))}
+          eks-cluster-arn: ${eksClusterStandard.status.?ackResourceMetadata.?arn.orValue("loading")}
+          eks-cluster-endpoint: ${eksClusterStandard.status.?endpoint.orValue("loading")}
           eks-cluster-name: ${schema.spec.name}-eks
-          eks-cluster-ca: ${eksClusterStandard.status.?certificateAuthority.?data.orValue(eksClusterAutoMode.status.?certificateAuthority.?data.orValue("loading"))}
+          eks-cluster-ca: ${eksClusterStandard.status.?certificateAuthority.?data.orValue("loading")}
+
+    # ── Bridge: Auto Mode variant ────────────────────────────────────
+    - id: computeBridgeAutoMode
+      includeWhen:
+        - ${schema.spec.eksAutoMode == true}
+        - ${schema.spec.createBridgeSecret == true}
+      readyWhen:
+        - ${computeBridgeAutoMode.metadata.?name.orValue('null') != 'null'}
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: ${schema.spec.name}-compute-bridge
+          namespace: ${schema.spec.namespace}
+          labels:
+            app.kubernetes.io/managed-by: kro
+            gen3.io/tier: compute
+            gen3.io/bridge: "true"
+        data:
+          eks-cluster-arn: ${eksClusterAutoMode.status.?ackResourceMetadata.?arn.orValue("loading")}
+          eks-cluster-endpoint: ${eksClusterAutoMode.status.?endpoint.orValue("loading")}
+          eks-cluster-name: ${schema.spec.name}-eks
+          eks-cluster-ca: ${eksClusterAutoMode.status.?certificateAuthority.?data.orValue("loading")}

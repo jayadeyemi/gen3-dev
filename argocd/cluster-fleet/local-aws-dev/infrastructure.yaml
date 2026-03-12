@@ -20,160 +20,44 @@
 #   Wave 10:  RGDs
 #   Wave 15:  Tier 0 instances (Foundation)
 #   Wave 20:  Tier 1 instances (Database — depends on Foundation bridge)
-#   Wave 25:  Tier 3 instances (Compute  — depends on Foundation bridge)
+#   Wave 25:  Tier 2 instances (Search  — depends on Foundation bridge)
+#   Wave 25:  Tier 3 instances (Compute — depends on Foundation bridge)
+#   Wave 30:  Tier 4 instances (AppIAM  — depends on Foundation + Compute + Database)
+#   Wave 35:  Tier 5 (Application — gen3-helm ArgoCD Application, not an RGD)
+#   Wave 35:  Tier 6 (Observability — LGTM Helm charts, not RGDs)
+#   Wave 30:  Tier 7 instances (Advanced — depends on Foundation, optional)
+#
+# Tier architecture: see outputs/plans/02-modular-rgd-design.md
+#
+# ── One full deployment: spoke1 (uncomment all 4 tiers to deploy) ──────────
+# Each tier depends on the previous tier's bridge ConfigMap(s).
+# Deploy in order: Foundation → Database → Search → Compute.
 # ─────────────────────────────────────────────────────────────────────────────
 
 instances: {}
 
-  # ── AwsGen3Infra1Flat — Full monolithic graph (reference only) ────────────
-  # 31+ resources: full gen3 infrastructure including EKS + Aurora.
-  # NOT instantiated here — too expensive (~$500+/mo) and superseded by
-  # the modular 7-tier architecture (Plan 02).
-  # RGD: awsgen3infra1flat-rg.yaml
+  # ── AwsGen3Foundation2 — Tier 0: Foundation-heavy (~$37/mo) ──────────────
+  # 31 resources (max): VPC + gateways + subnets + route tables + KMS + S3
+  # + conditional DB subnets/SGs + conditional IAM roles + conditional
+  # search KMS/SGs. Feature flags control prep resource groups.
+  # Creates up to 4 bridge ConfigMaps (foundation + 3 conditional prep).
+  # Uses 10.1.0.0/16 CIDR.
+  # RGD: awsgen3foundation2-rg.yaml
 
-  # gen3-infra:
-  #   kind: AwsGen3Infra1Flat
-  #   namespace: gen3-infra
+  # spoke1-foundation:
+  #   kind: AwsGen3Foundation2
+  #   namespace: spoke1-foundation
   #   syncWave: "15"
   #   environment: local
   #   spec:
-  #     name: gen3-dev
-  #     namespace: gen3-infra
+  #     name: spoke1
+  #     namespace: spoke1-foundation
   #     region: us-east-1
   #     environment: local
   #     project: gen3-dev
   #     adoptionPolicy: adopt-or-create
   #     deletionPolicy: delete
-  #     vpcCIDR: "10.0.0.0/16"
-  #     publicSubnetCIDRs:
-  #       - "10.0.240.0/24"
-  #       - "10.0.241.0/24"
-  #     privateSubnetCIDRs:
-  #       - "10.0.0.0/20"
-  #       - "10.0.16.0/20"
-  #     dbSubnetCIDRs:
-  #       - "10.0.32.0/24"
-  #       - "10.0.33.0/24"
-  #     availabilityZones:
-  #       - "us-east-1a"
-  #       - "us-east-1b"
-  #     loggingBucketName: gen3-dev-infra-logging
-  #     dataBucketName: gen3-dev-infra-data
-  #     uploadBucketName: gen3-dev-infra-upload
-  #     kmsKeyDescription: gen3-dev infra encryption key
-  #     kmsKeyAlias: gen3-dev-infra-key
-  #     eksVersion: "1.30"
-
-  # ── AwsGen3Base1Flat — Minimal foundation graph (reference only) ──────────
-  # ~15 resources: VPC + networking + KMS + IAM + S3 (no NAT, no DB subnets).
-  # Superseded by modular AwsGen3Foundation1.
-  # RGD: awsgen3base1flat-rg.yaml
-
-  # gen3-base:
-  #   kind: AwsGen3Base1Flat
-  #   namespace: gen3-base
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: gen3-dev
-  #     namespace: gen3-base
-  #     region: us-east-1
-  #     environment: local
-  #     project: gen3-dev
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-  #     vpcCIDR: "10.0.0.0/16"
-  #     publicSubnetCIDRs:
-  #       - "10.0.240.0/24"
-  #       - "10.0.241.0/24"
-  #     privateSubnetCIDRs:
-  #       - "10.0.0.0/20"
-  #       - "10.0.16.0/20"
-  #     availabilityZones:
-  #       - "us-east-1a"
-  #       - "us-east-1b"
-  #     loggingBucketName: gen3-dev-base-logging
-  #     dataBucketName: gen3-dev-base-data
-  #     uploadBucketName: gen3-dev-base-upload
-  #     kmsKeyDescription: gen3-dev base encryption key
-
-  # ── AwsGen3Network1Flat — Network expansion (reference only) ─────────────
-  # ~9 resources: NAT + EIP + DB subnets + SGs on top of Base.
-  # Superseded by modular architecture.
-  # RGD: awsgen3network1flat-rg.yaml
-
-  # gen3-network:
-  #   kind: AwsGen3Network1Flat
-  #   namespace: gen3-base
-  #   syncWave: "20"
-  #   environment: local
-  #   spec:
-  #     name: gen3-dev
-  #     namespace: gen3-base
-  #     region: us-east-1
-  #     environment: local
-  #     project: gen3-dev
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-
-  # ── AwsGen3Test1Flat — Low-cost test graph (~$37/mo) ─────────────────────
-  # 24 resources: VPC + KMS + S3 + DB subnet group (no EKS/Aurora).
-  # Uses 10.0.0.0/16 CIDR. Standalone — no bridge dependency.
-  # RGD: awsgen3test1flat-rg.yaml
-
-  # gen3-dev-test:
-  #   kind: AwsGen3Test1Flat
-  #   namespace: gen3-dev-test
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: gen3-dev-test
-  #     namespace: gen3-dev-test
-  #     region: us-east-1
-  #     environment: local
-  #     project: gen3-dev
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-  #     vpcCIDR: "10.0.0.0/16"
-  #     publicSubnetCIDRs:
-  #       - "10.0.240.0/24"
-  #       - "10.0.241.0/24"
-  #     privateSubnetCIDRs:
-  #       - "10.0.0.0/20"
-  #       - "10.0.16.0/20"
-  #     dbSubnetCIDRs:
-  #       - "10.0.32.0/24"
-  #       - "10.0.33.0/24"
-  #     availabilityZones:
-  #       - "us-east-1a"
-  #       - "us-east-1b"
-  #     loggingBucketName: gen3-dev-test-logging
-  #     dataBucketName: gen3-dev-test-data
-  #     uploadBucketName: gen3-dev-test-upload
-  #     kmsKeyDescription: gen3-dev-test encryption key
-  #     kmsKeyAlias: gen3-dev-test-key
-
-  # ── AwsGen3Foundation1 — Tier 0: Foundation (~$37/mo) ACTIVE ─────────────
-  # 16 resources: VPC + gateways + route tables + subnets + KMS + S3.
-  # Standalone — no bridge dependency as producer.
-  # Creates bridge ConfigMap for Tier 1/3 downstream tiers.
-  # Uses 10.1.0.0/16 CIDR (separate from test graph's 10.0.0.0/16).
-  # RGD: awsgen3foundation1-rg.yaml
-
-  # gen3-foundation:
-  #   kind: AwsGen3Foundation1
-  #   namespace: gen3-foundation
-  #   syncWave: "15"
-  #   environment: local
-  #   spec:
-  #     name: gen3-dev
-  #     namespace: gen3-foundation
-  #     region: us-east-1
-  #     environment: local
-  #     project: gen3-dev
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-
+  #
   #     # Network
   #     vpcCIDR: "10.1.0.0/16"
   #     publicSubnetCIDRs:
@@ -185,51 +69,57 @@ instances: {}
   #     availabilityZones:
   #       - "us-east-1a"
   #       - "us-east-1b"
-
-  #     # Storage (names must be globally unique in S3)
-  #     loggingBucketName: gen3-dev-foundation-logging
-  #     dataBucketName: gen3-dev-foundation-data
-  #     uploadBucketName: gen3-dev-foundation-upload
-
+  #
+  #     # Storage (globally unique S3 bucket names)
+  #     loggingBucketName: gen3-spoke1-logging
+  #     dataBucketName: gen3-spoke1-data
+  #     uploadBucketName: gen3-spoke1-upload
+  #
   #     # KMS
-  #     kmsKeyDescription: gen3-dev foundation encryption key
-
-  #     # Bridge (creates ConfigMap for Database/Compute tiers)
+  #     kmsKeyDescription: spoke1 foundation encryption key
+  #
+  #     # Feature flags — control conditional resource groups
+  #     databaseEnabled: true        # DB subnets, DB RT, DB subnet group, DB KMS, Aurora SG
+  #     computeEnabled: true         # EKS SG, Cluster IAM Role (6 policies), Node IAM Role (4 policies)
+  #     searchEnabled: false         # Search KMS, OpenSearch SG
+  #
+  #     # Database prep (only when databaseEnabled: true)
+  #     dbSubnetCIDRs:
+  #       - "10.1.32.0/24"
+  #       - "10.1.33.0/24"
+  #
+  #     # Bridge (always creates foundationBridge; conditionally creates
+  #     # databasePrepBridge, computePrepBridge, searchPrepBridge)
   #     createBridgeSecret: true
 
-  # ── Tier 1: Database ──────────────────────────────────────────────────
-  # PREREQUISITE: Before deploying, create the master password Secret:
+  # ── AwsGen3Database2 — Tier 1: Thin Database (Aurora only) ───────────────
+  # PREREQUISITE: Foundation2 must have databaseEnabled: true.
+  # PREREQUISITE: Create the master password Secret before deploying:
   #   kubectl create secret generic aurora-master-password \
-  #     -n gen3-database --from-literal=password='<your-secure-password>'
+  #     -n spoke1-database --from-literal=password='<your-secure-password>'
   #
-  # Reads Foundation bridge ConfigMap via cross-namespace externalRef.
-  # Aurora PostgreSQL Serverless v2 with 0.5-4 ACU scaling.
+  # Reads databasePrepBridge (DB subnet group, Aurora SG, DB KMS key)
+  # from Foundation. All networking/encryption/SG is pre-provisioned.
+  # Only creates: Aurora Cluster + Instance(s) + databaseBridge.
+  # RGD: awsgen3database2-rg.yaml
 
-  # gen3-database:
-  #   kind: AwsGen3Database1
-  #   namespace: gen3-database
+  # spoke1-database:
+  #   kind: AwsGen3Database2
+  #   namespace: spoke1-database
   #   syncWave: "20"
   #   environment: local
   #   spec:
-  #     name: gen3-dev
-  #     namespace: gen3-database
+  #     name: spoke1
+  #     namespace: spoke1-database
   #     region: us-east-1
   #     environment: local
   #     project: gen3-dev
   #     adoptionPolicy: adopt-or-create
   #     deletionPolicy: delete
   #
-  #     # Foundation bridge reference (cross-namespace)
-  #     foundationBridgeName: gen3-dev-foundation-bridge
-  #     foundationNamespace: gen3-foundation
-  #
-  #     # Database subnets (within Foundation VPC 10.1.0.0/16)
-  #     dbSubnetCIDRs:
-  #       - "10.1.32.0/24"
-  #       - "10.1.33.0/24"
-  #     availabilityZones:
-  #       - "us-east-1a"
-  #       - "us-east-1b"
+  #     # Bridge reference to Foundation's database prep
+  #     databasePrepBridgeName: spoke1-database-prep-bridge
+  #     foundationNamespace: spoke1-foundation
   #
   #     # Aurora configuration
   #     auroraEngineVersion: "16.6"
@@ -240,29 +130,42 @@ instances: {}
   #     auroraMinCapacity: "0.5"
   #     auroraMaxCapacity: "4"
   #
-  #     # Bridge (creates ConfigMap for Application IAM tier)
+  #     # Bridge (creates databaseBridge for downstream tiers)
   #     createBridgeSecret: true
 
-  # ── Tier 3: Compute (NOT instantiated — $350/mo) ─────────────────────
-  # RGD awsgen3compute1 is registered as a CRD but not deployed here.
-  # Uncomment to deploy EKS cluster + managed node group:
+  # ── AwsGen3Compute2 — Tier 3: Thin Compute (EKS only) ───────────────────
+  # PREREQUISITE: Foundation2 must have computeEnabled: true.
   #
-  # gen3-compute:
-  #   kind: AwsGen3Compute1
-  #   namespace: gen3-compute
+  # Reads computePrepBridge (EKS SG, Cluster Role ARN, Node Role ARN)
+  # and foundationBridge (VPC ID, subnet IDs) from Foundation.
+  # Only creates: EKS Cluster (Standard or Auto Mode) + Node Group +
+  # computeBridge.
+  # RGD: awsgen3compute2-rg.yaml
+
+  # spoke1-compute:
+  #   kind: AwsGen3Compute2
+  #   namespace: spoke1-compute
   #   syncWave: "25"
   #   environment: local
   #   spec:
-  #     name: gen3-dev
-  #     namespace: gen3-compute
+  #     name: spoke1
+  #     namespace: spoke1-compute
   #     region: us-east-1
   #     environment: local
   #     project: gen3-dev
   #     adoptionPolicy: adopt-or-create
   #     deletionPolicy: delete
-  #     foundationBridgeName: gen3-dev-foundation-bridge
-  #     foundationNamespace: gen3-foundation
+  #
+  #     # Bridge references to Foundation's compute prep + foundation
+  #     computePrepBridgeName: spoke1-compute-prep-bridge
+  #     foundationBridgeName: spoke1-foundation-bridge
+  #     foundationNamespace: spoke1-foundation
+  #
+  #     # EKS configuration
   #     kubernetesVersion: "1.30"
+  #     eksAutoMode: false           # true = Auto Mode (no nodeGroup), false = Standard
+  #
+  #     # Node group (Standard mode only, ignored when eksAutoMode: true)
   #     nodeInstanceTypes:
   #       - "t3.medium"
   #     nodeDesiredSize: 2
@@ -270,4 +173,116 @@ instances: {}
   #     nodeMaxSize: 4
   #     nodeDiskSize: 20
   #     nodeAMIType: AL2023_x86_64_STANDARD
+  #
+  #     # Bridge (creates computeBridge for downstream tiers)
   #     createBridgeSecret: true
+
+  # ── AwsGen3Search1 — Tier 2: Thin Search (OpenSearch only) ───────────────
+  # PREREQUISITE: Foundation2 must have searchEnabled: true.
+  # PREREQUISITE: ACK opensearchservice controller must be installed.
+  #
+  # Reads searchPrepBridge (Search KMS Key ARN, OpenSearch SG ID)
+  # and foundationBridge (VPC ID, private subnet IDs) from Foundation.
+  # Only creates: OpenSearch Domain + searchBridge.
+  # RGD: awsgen3search1-rg.yaml
+
+  # spoke1-search:
+  #   kind: AwsGen3Search1
+  #   namespace: spoke1-search
+  #   syncWave: "25"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1-search
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #
+  #     # Bridge references to Foundation's search prep + foundation
+  #     searchPrepBridgeName: spoke1-search-prep-bridge
+  #     foundationBridgeName: spoke1-foundation-bridge
+  #     foundationNamespace: spoke1-foundation
+  #
+  #     # OpenSearch configuration
+  #     opensearchVersion: "OpenSearch_2.11"
+  #     opensearchInstanceType: "t3.small.search"
+  #     opensearchInstanceCount: 1
+  #     opensearchVolumeSize: 10
+  #
+  #     # Bridge (creates searchBridge for downstream tiers)
+  #     createBridgeSecret: true
+
+  # ── Tier 4: Application IAM (RGD not yet built — needs sqs ACK) ─────────
+  # RGD awsgen3appiam1 does not exist yet. Planned for Phase 6 (Plan 02).
+  # Creates IRSA roles, SQS queues, Secrets Manager entries.
+  # Requires sqs ACK controller to be installed.
+  #
+  # spoke1-appiam:
+  #   kind: AwsGen3AppIAM1
+  #   namespace: spoke1-appiam
+  #   syncWave: "30"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1-appiam
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     foundationBridgeName: spoke1-foundation-bridge
+  #     foundationNamespace: spoke1-foundation
+  #     computeBridgeName: spoke1-compute-bridge
+  #     computeNamespace: spoke1-compute
+  #     databaseBridgeName: spoke1-database-bridge
+  #     databaseNamespace: spoke1-database
+  #     # IRSA role configuration TBD
+  #     createBridgeSecret: true
+
+  # ── Tier 5: Application (gen3-helm — ArgoCD Application, NOT an RGD) ─────
+  # gen3-helm is deployed as an ArgoCD Application, not a KRO instance.
+  # The ArgoCD Application would be managed via addons (addons.yaml) or
+  # a separate ApplicationSet, reading infrastructure bridge ConfigMaps
+  # to configure Helm values.
+  #
+  # Dev mode (global.dev: true) uses in-cluster PostgreSQL + Elasticsearch
+  # and only requires Tier 0 (Foundation) for networking.
+  #
+  # Production mode uses external Aurora (Tier 1) and OpenSearch (Tier 2),
+  # with connection details read from bridge ConfigMaps.
+  #
+  # See: outputs/plans/02-modular-rgd-design.md Section 3 (Tier 5)
+
+  # ── Tier 6: Observability (LGTM — Helm charts, NOT an RGD) ──────────────
+  # Grafana, Loki, Mimir, Tempo, Alloy, Faro deployed as separate Helm
+  # charts via ArgoCD. Independent of gen3-helm.
+  #
+  # See: outputs/plans/02-modular-rgd-design.md Section 3 (Tier 6)
+
+  # ── Tier 7: Advanced & Monitoring (NOT instantiated — future) ────────────
+  # RGD awsgen3advanced1 does not exist yet. Planned for Phase 9 (Plan 02).
+  # Optional infrastructure: WAF, EFS, ElastiCache, CloudWatch log groups,
+  # alarms, SNS. Requires multiple new ACK controllers.
+  #
+  # gen3-advanced:
+  #   kind: AwsGen3Advanced1
+  #   namespace: spoke1-advanced
+  #   syncWave: "30"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1-advanced
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #     adoptionPolicy: adopt-or-create
+  #     deletionPolicy: delete
+  #     foundationBridgeName: spoke1-foundation-bridge
+  #     foundationNamespace: spoke1-foundation
+  #     # Feature flags (all optional)
+  #     wafEnabled: false
+  #     efsEnabled: false
+  #     cacheEnabled: false
+  #     monitoringEnabled: false

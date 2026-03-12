@@ -159,39 +159,36 @@ The `.gitignore` covers: `*.ppk`, `*.pem`, `**/secrets/*`, `**/secrets.yaml`,
 
 ## ResourceGraphDefinitions (RGDs)
 
-RGDs use versioned naming: monolithic graphs use `AwsGen3<Component><Version>Flat`,
-modular tier graphs use `AwsGen3<Component><Version>` (no Flat suffix).
+RGDs use versioned naming: modular tier graphs use
+`AwsGen3<Component><Version>` (e.g., `AwsGen3Foundation2`).
 
-### Monolithic RGDs (legacy/reference)
+### Modular RGDs (Plan 02 Revision 4 — Foundation-heavy architecture)
 
-| RGD | Kind | Resources | Purpose |
-|-----|------|-----------|---------|
-| awsgen3infra1flat | AwsGen3Infra1Flat | 31+ | Full gen3 infrastructure (copied from gen3-kro) |
-| awsgen3base1flat | AwsGen3Base1Flat | 15 | Minimal foundation: VPC + networking + KMS + IAM + S3 |
-| awsgen3network1flat | AwsGen3Network1Flat | 9 | Network expansion: NAT + EIP + DB subnets + SGs |
-| awsgen3test1flat | AwsGen3Test1Flat | 24 | Low-cost test graph (~$37/month, no EKS/Aurora) |
+| Tier | Category | RGD / Chart | Kind | Status | Depends On | Cost |
+|------|----------|-------------|------|--------|------------|------|
+| 0 | Infra RGD | awsgen3foundation2 | AwsGen3Foundation2 | ✅ Built (31 resources) | — (standalone) | ~$37/mo |
+| 1 | Infra RGD | awsgen3database2 | AwsGen3Database2 | ✅ Built (thin) | databasePrepBridge | ~$45-350/mo |
+| 2 | Infra RGD | awsgen3search1 | AwsGen3Search1 | ✅ Built (thin) | searchPrepBridge + foundationBridge | ~$30-200/mo |
+| 3 | Infra RGD | awsgen3compute2 | AwsGen3Compute2 | ✅ Built (Standard/Auto) | computePrepBridge + foundationBridge | ~$350/mo |
+| 4 | Infra RGD | awsgen3appiam1 | AwsGen3AppIAM1 | ⬜ Planned | Foundation + Compute + Database bridges | ~$5/mo |
+| 5 | Helm App | gen3-helm | — | ⬜ Planned | Bridges from active infra tiers | varies |
+| 6 | Helm App | LGTM stack | — | ⬜ Planned | Foundation + Compute | ~$0-50/mo |
+| 7 | Infra RGD | awsgen3advanced1 | AwsGen3Advanced1 | ⬜ Future | foundationBridge | ~$0-200/mo |
 
-### Modular RGDs (Plan 02 — 7-tier architecture)
+Foundation2 absorbs ALL prep infrastructure (SGs, IAM roles, DB subnets,
+KMS keys) behind feature flags (`databaseEnabled`, `computeEnabled`,
+`searchEnabled`). Tiers 1-3 become thin managed-service-only layers.
+Creates up to 4 bridge ConfigMaps: `foundationBridge` (always) +
+`databasePrepBridge`, `computePrepBridge`, `searchPrepBridge` (conditional).
 
-| Tier | RGD | Kind | Resources | Depends On | Cost |
-|------|-----|------|-----------|------------|------|
-| 0 | awsgen3foundation1 | AwsGen3Foundation1 | 16 + bridge | — (standalone) | ~$37/mo |
-| 1 | awsgen3database1 | AwsGen3Database1 | 9 + bridge | Foundation bridge | ~$45-350/mo |
-| 3 | awsgen3compute1 | AwsGen3Compute1 | 6 + bridge | Foundation bridge | ~$350/mo |
-
-Cross-tier dependencies flow via **bridge ConfigMaps** (not Secrets) created
-with `includeWhen: createBridgeSecret == true`. Consumer tiers read the bridge
-via `externalRef` (cross-namespace, validated by KRO capability Test 7b).
-
-Only the **test graph** (AwsGen3Test1Flat) and **Foundation** (AwsGen3Foundation1)
-are instantiated. Database and Compute RGDs are registered as CRDs but not
-deployed (Database requires a password Secret; Compute is high-cost).
+Tiers 5 and 6 are Helm-deployed ArgoCD Applications, not KRO RGD instances.
+Legacy monolithic and v1 modular RGDs have been removed.
 
 ## KRO Capability Tests
 
 All KRO feature-validation tests live in `argocd/charts/resource-groups/templates/`
 and are ArgoCD-managed — no manual `kubectl apply`. Instances are declared in
-`argocd/cluster-fleet/local-aws-dev/infrastructure.yaml`.
+`argocd/cluster-fleet/local-aws-dev/tests.yaml`.
 
 | # | Kind | RGD file | Instance key(s) | Resources | AWS? |
 |---|------|----------|-----------------|-----------|------|
@@ -230,7 +227,7 @@ When creating new plans, follow the numbered prefix convention:
 |------|---------|
 | `01-gen3-infrastructure-component-map.md` | Maps all Gen3 services, AWS infrastructure components, dependencies, and cost drivers |
 | `02-modular-rgd-design.md` | Defines the 7-tier modular RGD architecture (Foundation → Database → Search → Compute → AppIAM → Advanced → Monitoring) |
-| `03-kro-capability-test-report.md` | Test report for KRO capability validation (forEach, includeWhen, bridge Secret, CEL, SG/RT conditional, cross-RGD status) |
+| `03-kro-capability-test-report.md` | Test report for KRO capability validation (forEach, includeWhen, bridge ConfigMap, CEL, SG/RT conditional, cross-RGD status) |
 | `04-modular-sg-routetable-design.md` | Patterns A–D analysis for SG/RT conditional entries; recommended Pattern A (multi-resource + includeWhen) for gen3-kro |
 
 Consult these files before creating or modifying RGDs to ensure alignment

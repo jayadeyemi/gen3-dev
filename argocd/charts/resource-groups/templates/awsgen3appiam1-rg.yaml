@@ -53,8 +53,8 @@ spec:
       ssjdispatcherEnabled: boolean | default=false
 
       # ── SQS Configuration ───────────────────────────────────────
-      sqsMessageRetention: integer | default=345600
-      sqsVisibilityTimeout: integer | default=300
+      sqsMessageRetention: string | default="345600"
+      sqsVisibilityTimeout: string | default="300"
 
       # ── Bridge ───────────────────────────────────────────────────
       createBridgeSecret: boolean | default=true

@@ -6,7 +6,7 @@
 **/*.pem
 **/variables.env
 **/secrets/*
-github/**
+.github/**
 **/secrets.yaml
 # old-*
 **/old*/*

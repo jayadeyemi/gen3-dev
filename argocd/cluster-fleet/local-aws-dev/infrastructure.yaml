@@ -142,40 +142,40 @@ instances:
   # computeBridge.
   # RGD: awsgen3compute2-rg.yaml
 
-  # spoke1-compute:
-  #   kind: AwsGen3Compute2
-  #   namespace: spoke1-compute
-  #   syncWave: "25"
-  #   environment: local
-  #   spec:
-  #     name: spoke1
-  #     namespace: spoke1-compute
-  #     region: us-east-1
-  #     environment: local
-  #     project: gen3-dev
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-  #
-  #     # Bridge references to Foundation's compute prep + foundation
-  #     computePrepBridgeName: spoke1-compute-prep-bridge
-  #     foundationBridgeName: spoke1-foundation-bridge
-  #     foundationNamespace: spoke1-foundation
-  #
-  #     # EKS configuration
-  #     kubernetesVersion: "1.30"
-  #     eksAutoMode: false           # true = Auto Mode (no nodeGroup), false = Standard
-  #
-  #     # Node group (Standard mode only, ignored when eksAutoMode: true)
-  #     nodeInstanceTypes:
-  #       - "t3.medium"
-  #     nodeDesiredSize: 2
-  #     nodeMinSize: 1
-  #     nodeMaxSize: 4
-  #     nodeDiskSize: 20
-  #     nodeAMIType: AL2023_x86_64_STANDARD
-  #
-  #     # Bridge (creates computeBridge for downstream tiers)
-  #     createBridgeSecret: true
+  spoke1-compute:
+    kind: AwsGen3Compute2
+    namespace: spoke1
+    syncWave: "25"
+    environment: local
+    spec:
+      name: spoke1
+      namespace: spoke1
+      region: us-east-1
+      environment: local
+      project: gen3-dev
+      adoptionPolicy: adopt-or-create
+      deletionPolicy: delete
+
+      # Bridge references to Foundation's compute prep + foundation
+      computePrepBridgeName: spoke1-compute-prep-bridge
+      foundationBridgeName: spoke1-foundation-bridge
+      foundationNamespace: spoke1
+
+      # EKS configuration
+      kubernetesVersion: "1.30"
+      eksAutoMode: false           # true = Auto Mode (no nodeGroup), false = Standard
+
+      # Node group (Standard mode only, ignored when eksAutoMode: true)
+      nodeInstanceTypes:
+        - "t3.medium"
+      nodeDesiredSize: 2
+      nodeMinSize: 1
+      nodeMaxSize: 4
+      nodeDiskSize: 20
+      nodeAMIType: AL2023_x86_64_STANDARD
+
+      # Bridge (creates computeBridge for downstream tiers)
+      createBridgeSecret: true
 
   # ── AwsGen3Search1 — Tier 2: Thin Search (OpenSearch only) ───────────────
   # PREREQUISITE: Foundation2 must have searchEnabled: true.
@@ -186,33 +186,33 @@ instances:
   # Only creates: OpenSearch Domain + searchBridge.
   # RGD: awsgen3search1-rg.yaml
 
-  # spoke1-search:
-  #   kind: AwsGen3Search1
-  #   namespace: spoke1-search
-  #   syncWave: "25"
-  #   environment: local
-  #   spec:
-  #     name: spoke1
-  #     namespace: spoke1-search
-  #     region: us-east-1
-  #     environment: local
-  #     project: gen3-dev
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-  #
-  #     # Bridge references to Foundation's search prep + foundation
-  #     searchPrepBridgeName: spoke1-search-prep-bridge
-  #     foundationBridgeName: spoke1-foundation-bridge
-  #     foundationNamespace: spoke1-foundation
-  #
-  #     # OpenSearch configuration
-  #     opensearchVersion: "OpenSearch_2.11"
-  #     opensearchInstanceType: "t3.small.search"
-  #     opensearchInstanceCount: 1
-  #     opensearchVolumeSize: 10
-  #
-  #     # Bridge (creates searchBridge for downstream tiers)
-  #     createBridgeSecret: true
+  spoke1-search:
+    kind: AwsGen3Search1
+    namespace: spoke1
+    syncWave: "25"
+    environment: local
+    spec:
+      name: spoke1
+      namespace: spoke1
+      region: us-east-1
+      environment: local
+      project: gen3-dev
+      adoptionPolicy: adopt-or-create
+      deletionPolicy: delete
+
+      # Bridge references to Foundation's search prep + foundation
+      searchPrepBridgeName: spoke1-search-prep-bridge
+      foundationBridgeName: spoke1-foundation-bridge
+      foundationNamespace: spoke1
+
+      # OpenSearch configuration
+      opensearchVersion: "OpenSearch_2.11"
+      opensearchInstanceType: "t3.small.search"
+      opensearchInstanceCount: 1
+      opensearchVolumeSize: 10
+
+      # Bridge (creates searchBridge for downstream tiers)
+      createBridgeSecret: true
 
   # ── AwsGen3AppIAM1 — Tier 4: Application IAM (~$5/mo) ─────────────────────
   # OIDC Provider + IRSA roles (fence, audit, hatchery, manifestservice,

@@ -221,36 +221,36 @@ instances:
   # secretsmanager ACK controllers.
   # RGD: awsgen3appiam1-rg.yaml
 
-  # spoke1-appiam:
-  #   kind: AwsGen3AppIAM1
-  #   namespace: spoke1-appiam
-  #   syncWave: "30"
-  #   environment: local
-  #   spec:
-  #     name: spoke1
-  #     namespace: spoke1-appiam
-  #     region: us-east-1
-  #     environment: local
-  #     project: gen3-dev
-  #     adoptionPolicy: adopt-or-create
-  #     deletionPolicy: delete
-  #
-  #     # Bridge references
-  #     foundationBridgeName: spoke1-foundation-bridge
-  #     computeBridgeName: spoke1-compute-bridge
-  #     foundationNamespace: spoke1-foundation
-  #     computeNamespace: spoke1-compute
-  #
-  #     # Feature flags
-  #     fenceEnabled: true
-  #     auditEnabled: true
-  #     hatcheryEnabled: false
-  #     manifestserviceEnabled: false
-  #     externalSecretsEnabled: false
-  #     ssjdispatcherEnabled: false
-  #
-  #     # Bridge
-  #     createBridgeSecret: true
+  spoke1-appiam:
+    kind: AwsGen3AppIAM1
+    namespace: spoke1
+    syncWave: "30"
+    environment: local
+    spec:
+      name: spoke1
+      namespace: spoke1
+      region: us-east-1
+      environment: local
+      project: gen3-dev
+      adoptionPolicy: adopt-or-create
+      deletionPolicy: delete
+
+      # Bridge references (same namespace — all in spoke1)
+      foundationBridgeName: spoke1-foundation-bridge
+      computeBridgeName: spoke1-compute-bridge
+      foundationNamespace: spoke1
+      computeNamespace: spoke1
+
+      # Feature flags — all enabled for complete testing
+      fenceEnabled: true
+      auditEnabled: true
+      hatcheryEnabled: true
+      manifestserviceEnabled: true
+      externalSecretsEnabled: true
+      ssjdispatcherEnabled: true
+
+      # Bridge
+      createBridgeSecret: true
 
   # ── AwsGen3Helm1 — Tier 5: Gen3 Application (ArgoCD App via RGD) ────────
   # Creates an ArgoCD Application CR that deploys the gen3-helm umbrella

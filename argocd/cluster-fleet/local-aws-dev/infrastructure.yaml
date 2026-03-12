@@ -81,7 +81,7 @@ instances:
       # Feature flags — control conditional resource groups
       databaseEnabled: true        # DB subnets, DB RT, DB subnet group, DB KMS, Aurora SG
       computeEnabled: true         # EKS SG, Cluster IAM Role (6 policies), Node IAM Role (4 policies)
-      searchEnabled: false         # Search KMS, OpenSearch SG
+      searchEnabled: true          # Search KMS, OpenSearch SG
 
       # Database prep (only when databaseEnabled: true)
       dbSubnetCIDRs:

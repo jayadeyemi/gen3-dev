@@ -306,6 +306,7 @@ spec:
           eks-cluster-endpoint: ${eksClusterStandard.status.?endpoint.orValue("loading")}
           eks-cluster-name: ${schema.spec.name}-eks
           eks-cluster-ca: ${eksClusterStandard.status.?certificateAuthority.?data.orValue("loading")}
+          eks-oidc-issuer: ${eksClusterStandard.status.?identity.?oidc.?issuer.orValue("loading")}
 
     # ── Bridge: Auto Mode variant ────────────────────────────────────
     - id: computeBridgeAutoMode
@@ -329,3 +330,4 @@ spec:
           eks-cluster-endpoint: ${eksClusterAutoMode.status.?endpoint.orValue("loading")}
           eks-cluster-name: ${schema.spec.name}-eks
           eks-cluster-ca: ${eksClusterAutoMode.status.?certificateAuthority.?data.orValue("loading")}
+          eks-oidc-issuer: ${eksClusterAutoMode.status.?identity.?oidc.?issuer.orValue("loading")}

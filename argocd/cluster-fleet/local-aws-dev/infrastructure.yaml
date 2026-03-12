@@ -214,11 +214,13 @@ instances: {}
   #     # Bridge (creates searchBridge for downstream tiers)
   #     createBridgeSecret: true
 
-  # ── Tier 4: Application IAM (RGD not yet built — needs sqs ACK) ─────────
-  # RGD awsgen3appiam1 does not exist yet. Planned for Phase 6 (Plan 02).
-  # Creates IRSA roles, SQS queues, Secrets Manager entries.
-  # Requires sqs ACK controller to be installed.
-  #
+  # ── AwsGen3AppIAM1 — Tier 4: Application IAM (~$5/mo) ─────────────────────
+  # OIDC Provider + IRSA roles (fence, audit, hatchery, manifestservice,
+  # externalSecrets) + SQS queues (audit, ssjdispatcher) + Secrets Manager.
+  # All resources conditional via feature flags. Requires sqs + iam +
+  # secretsmanager ACK controllers.
+  # RGD: awsgen3appiam1-rg.yaml
+
   # spoke1-appiam:
   #   kind: AwsGen3AppIAM1
   #   namespace: spoke1-appiam
@@ -232,34 +234,88 @@ instances: {}
   #     project: gen3-dev
   #     adoptionPolicy: adopt-or-create
   #     deletionPolicy: delete
+  #
+  #     # Bridge references
   #     foundationBridgeName: spoke1-foundation-bridge
-  #     foundationNamespace: spoke1-foundation
   #     computeBridgeName: spoke1-compute-bridge
+  #     foundationNamespace: spoke1-foundation
   #     computeNamespace: spoke1-compute
-  #     databaseBridgeName: spoke1-database-bridge
-  #     databaseNamespace: spoke1-database
-  #     # IRSA role configuration TBD
+  #
+  #     # Feature flags
+  #     fenceEnabled: true
+  #     auditEnabled: true
+  #     hatcheryEnabled: false
+  #     manifestserviceEnabled: false
+  #     externalSecretsEnabled: false
+  #     ssjdispatcherEnabled: false
+  #
+  #     # Bridge
   #     createBridgeSecret: true
 
-  # ── Tier 5: Application (gen3-helm — ArgoCD Application, NOT an RGD) ─────
-  # gen3-helm is deployed as an ArgoCD Application, not a KRO instance.
-  # The ArgoCD Application would be managed via addons (addons.yaml) or
-  # a separate ApplicationSet, reading infrastructure bridge ConfigMaps
-  # to configure Helm values.
-  #
-  # Dev mode (global.dev: true) uses in-cluster PostgreSQL + Elasticsearch
-  # and only requires Tier 0 (Foundation) for networking.
-  #
-  # Production mode uses external Aurora (Tier 1) and OpenSearch (Tier 2),
-  # with connection details read from bridge ConfigMaps.
-  #
-  # See: outputs/plans/02-modular-rgd-design.md Section 3 (Tier 5)
+  # ── AwsGen3Helm1 — Tier 5: Gen3 Application (ArgoCD App via RGD) ────────
+  # Creates an ArgoCD Application CR that deploys the gen3-helm umbrella
+  # chart onto the spoke EKS cluster. Reads foundation + compute bridges.
+  # RGD: awsgen3helm1-rg.yaml
 
-  # ── Tier 6: Observability (LGTM — Helm charts, NOT an RGD) ──────────────
-  # Grafana, Loki, Mimir, Tempo, Alloy, Faro deployed as separate Helm
-  # charts via ArgoCD. Independent of gen3-helm.
+  # spoke1-gen3helm:
+  #   kind: AwsGen3Helm1
+  #   namespace: spoke1-gen3helm
+  #   syncWave: "35"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1-gen3helm
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
   #
-  # See: outputs/plans/02-modular-rgd-design.md Section 3 (Tier 6)
+  #     # Gen3 configuration
+  #     hostname: spoke1.gen3.local
+  #     gen3HelmChartVersion: "0.1.104"
+  #     gen3HelmTargetRevision: "0.1.104"
+  #
+  #     # Bridge references
+  #     foundationBridgeName: spoke1-foundation-bridge
+  #     computeBridgeName: spoke1-compute-bridge
+  #     foundationNamespace: spoke1-foundation
+  #     computeNamespace: spoke1-compute
+  #
+  #     # Gen3 service flags
+  #     fenceEnabled: true
+  #     auditEnabled: true
+  #     hatcheryEnabled: false
+  #     indexdEnabled: true
+  #     portalEnabled: true
+  #     autoSync: false
+
+  # ── AwsGen3Observability1 — Tier 6: LGTM Stack (ArgoCD Apps via RGD) ────
+  # Creates ArgoCD Application CRs for Grafana, Loki, Tempo, Alloy.
+  # Each component conditional via feature flags.
+  # RGD: awsgen3observability1-rg.yaml
+
+  # spoke1-observability:
+  #   kind: AwsGen3Observability1
+  #   namespace: spoke1-observability
+  #   syncWave: "35"
+  #   environment: local
+  #   spec:
+  #     name: spoke1
+  #     namespace: spoke1-observability
+  #     region: us-east-1
+  #     environment: local
+  #     project: gen3-dev
+  #
+  #     # Bridge references
+  #     computeBridgeName: spoke1-compute-bridge
+  #     computeNamespace: spoke1-compute
+  #
+  #     # Observability components
+  #     grafanaEnabled: true
+  #     lokiEnabled: true
+  #     tempoEnabled: false
+  #     alloyEnabled: true
+  #     observabilityNamespace: monitoring
+  #     autoSync: false
 
   # ── Tier 7: Advanced & Monitoring (NOT instantiated — future) ────────────
   # RGD awsgen3advanced1 does not exist yet. Planned for Phase 9 (Plan 02).

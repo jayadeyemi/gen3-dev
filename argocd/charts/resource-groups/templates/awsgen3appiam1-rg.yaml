@@ -5,8 +5,8 @@
 # via feature flags (fenceEnabled, auditEnabled, etc.).
 #
 # PREREQUISITES:
-#   1. Foundation2 deployed with foundationBridge created
-#   2. Compute2 deployed with computeBridge created (provides OIDC issuer)
+#   1. Foundation1 deployed with foundationBridge created
+#   2. Compute1 deployed with computeBridge created (provides OIDC issuer)
 #
 # CROSS-TIER: Reads foundationBridge (S3 ARNs, KMS ARNs) and computeBridge
 # (EKS cluster name, OIDC issuer) via externalRef.

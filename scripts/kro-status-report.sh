@@ -5,18 +5,21 @@
 # Produces a structured report of:
 #   1. KRO controller health + all RGDs
 #   2. ACK controller health (auto-discovered from addons.yaml)
-#   3. Active KRO instance status (auto-discovered from infrastructure.yaml)
+#   3. Active KRO instance status (auto-discovered from infrastructure/ and tests/)
 #      — conditions, status fields, bridge ConfigMaps, per-instance ACK resources
-#   4. ACK-managed AWS resources (all namespaces from infrastructure.yaml)
+#   4. ACK-managed AWS resources (all namespaces from infrastructure/ and tests/)
 #   5. ArgoCD Application health
 #
+# Output is always written to outputs/reports/<name>.ansi (ANSI colours preserved).
+# Filename is derived from flags; existing files are overwritten unless -ts is used.
+#
 # Usage:
-#   bash scripts/kro-status-report.sh                        # Full report (stdout)
-#   bash scripts/kro-status-report.sh --out ./report.ansi   # Save ANSI file
-#   bash scripts/kro-status-report.sh --ns spoke1           # Filter namespace
-#   bash scripts/kro-status-report.sh --instance spoke1-foundation  # Filter instance
-#   bash scripts/kro-status-report.sh --section kro         # kro | ack | instances | argocd
-#   bash scripts/kro-status-report.sh --json ./report.json  # Also emit JSON snapshot
+#   bash scripts/kro-status-report.sh                      # → kro-status.ansi
+#   bash scripts/kro-status-report.sh --ns spoke1          # → kro-status-ns-spoke1.ansi
+#   bash scripts/kro-status-report.sh --section kro        # kro | ack | instances | argocd
+#   bash scripts/kro-status-report.sh --instance <name>    # filter to one instance
+#   bash scripts/kro-status-report.sh --json ./snap.json   # also emit JSON snapshot
+#   bash scripts/kro-status-report.sh -ts                  # append timestamp to filename
 #
 # Mirrors kind-local-test.sh script structure and lib-logging.sh conventions.
 ###############################################################################
@@ -26,7 +29,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 
 ADDONS_FILE="${REPO_DIR}/argocd/addons/local/addons.yaml"
-INFRA_FILE="${REPO_DIR}/argocd/cluster-fleet/local-aws-dev/infrastructure.yaml"
+INFRA_DIR="${REPO_DIR}/argocd/cluster-fleet/local-aws-dev"
 
 # shellcheck source=lib-logging.sh
 source "${SCRIPT_DIR}/lib-logging.sh"
@@ -36,7 +39,7 @@ FILTER_NS=""
 FILTER_INSTANCE=""
 FILTER_SECTION=""   # kro | instances | ack | argocd | (empty = all)
 JSON_OUT=""
-FILE_OUT=""
+ADD_TIMESTAMP=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -44,41 +47,50 @@ while [[ $# -gt 0 ]]; do
     --instance)  FILTER_INSTANCE="$2"; shift 2 ;;
     --section)   FILTER_SECTION="$2";  shift 2 ;;
     --json)      JSON_OUT="$2";        shift 2 ;;
-    --out)       FILE_OUT="$2";        shift 2 ;;
+    -ts)         ADD_TIMESTAMP=1;      shift ;;
     -h|--help)
-      sed -n '4,18p' "$0" | sed 's/^# //'
+      sed -n '4,22p' "$0" | sed -E 's/^#( |$)//'
       exit 0 ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
 
-# ── Output Tee: force ANSI colours even when writing to file ──────────────────
-if [[ -n "${FILE_OUT}" ]]; then
-  # Force ANSI colour codes regardless of tty detection in lib-logging.sh
-  _CLR_RST='\033[0m'
-  _CLR_GRN='\033[0;32m'
-  _CLR_YLW='\033[0;33m'
-  _CLR_RED='\033[0;31m'
-  _CLR_BLU='\033[0;34m'
-  _CLR_CYN='\033[0;36m'
-  _CLR_MAG='\033[0;35m'
-  _CLR_WHT='\033[1;37m'
-  _CLR_DIM='\033[2m'
-  exec > >(tee "${FILE_OUT}") 2>&1
-else
-  # Honour tty detection but add extra colours
-  if [[ -t 1 ]]; then
-    _CLR_MAG='\033[0;35m'
-    _CLR_WHT='\033[1;37m'
-    _CLR_DIM='\033[2m'
-  else
-    _CLR_MAG='' _CLR_WHT='' _CLR_DIM=''
-  fi
-fi
+# ── Compute output path from active flags ────────────────────────────────────
+_build_output_path() {
+  local name="kro-status"
+  [[ -n "${FILTER_SECTION}" ]]   && name+="-section-${FILTER_SECTION}"
+  [[ -n "${FILTER_NS}" ]]        && name+="-ns-${FILTER_NS}"
+  [[ -n "${FILTER_INSTANCE}" ]]  && name+="-instance-${FILTER_INSTANCE}"
+  [[ "${ADD_TIMESTAMP}" -eq 1 ]] && name+="-$(date '+%Y%m%d-%H%M%S')"
+  echo "${REPO_DIR}/outputs/reports/${name}.ansi"
+}
+
+FILE_OUT="$(_build_output_path)"
+mkdir -p "$(dirname "${FILE_OUT}")"
+
+# ── Output: always tee to ANSI file (force colour codes regardless of tty) ───
+_CLR_RST='\033[0m'
+_CLR_GRN='\033[0;32m'
+_CLR_YLW='\033[0;33m'
+_CLR_RED='\033[0;31m'
+_CLR_BLU='\033[0;34m'
+_CLR_CYN='\033[0;36m'
+_CLR_MAG='\033[0;35m'
+_CLR_WHT='\033[1;37m'
+_CLR_DIM='\033[2m'
+exec > >(tee "${FILE_OUT}") 2>&1
 
 # ── Helper: print separators ─────────────────────────────────────────────────
 sep()      { echo -e "${_CLR_DIM}────────────────────────────────────────────────────────────────────${_CLR_RST}"; }
 sep_thin() { echo -e "${_CLR_DIM}  ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈${_CLR_RST}"; }
+
+# ── Helper: print intentionally empty section (for --section filtering) ─────
+print_empty_section() {
+  local title="$1"
+  log_banner "${title}"
+  echo -e "  ${_CLR_DIM}(empty — filtered by --section=${FILTER_SECTION})${_CLR_RST}"
+  echo ""
+}
 
 # ── Helper: kubectl quiet (no error on not-found) ─────────────────────────────
 kget()  { kubectl get "$@" 2>/dev/null || true; }
@@ -105,80 +117,57 @@ for m in re.finditer(r'name:\s*["\']?(ack-[\w-]+-controller)["\']?', text):
 PYEOF
 }
 
-# ── Helper: auto-discover active instances from infrastructure.yaml ────────────
+# ── Helper: auto-discover active instances from infrastructure/ and tests/ ────
+# Scans all *.yaml files in both directories, parsing non-commented YAML docs
+# to extract deployed KRO instances.
 # Outputs lines of "kind|instance-name|namespace"
 discover_instances() {
-  python3 - "${INFRA_FILE}" <<'PYEOF'
-import sys, re
+  python3 - "${INFRA_DIR}" <<'PYEOF'
+import sys, os, re
 
-path = sys.argv[1]
-try:
-    text = open(path).read()
-except Exception as e:
-    print(f"# error: {e}", file=sys.stderr)
-    sys.exit(0)
+base_dir = sys.argv[1]
+subdirs = ['infrastructure', 'tests']
 
-# Simple block parser: find top-level keys under "instances:" that are not
-# commented out. We look for lines that match:
-#   ^  <instance-name>:
-# then scan forward for "kind:", "namespace:"
-lines = text.splitlines()
-in_instances = False
-indent_instances = None
-current_entry = None
-entry_indent = None
-entries = {}  # name -> {kind, namespace}
-
-for i, line in enumerate(lines):
-    stripped = line.lstrip()
-    indent = len(line) - len(stripped)
-
-    # Detect "instances:" block (not commented)
-    if re.match(r'^instances\s*:', line) and not line.startswith('#'):
-        in_instances = True
-        indent_instances = indent
+for subdir in subdirs:
+    scan_dir = os.path.join(base_dir, subdir)
+    if not os.path.isdir(scan_dir):
         continue
 
-    if not in_instances:
-        continue
+    for fname in sorted(os.listdir(scan_dir)):
+        if not fname.endswith('.yaml'):
+            continue
+        fpath = os.path.join(scan_dir, fname)
+        try:
+            text = open(fpath).read()
+        except Exception as e:
+            print(f"# error reading {fpath}: {e}", file=sys.stderr)
+            continue
 
-    # A comment line inside instances block
-    if stripped.startswith('#'):
-        continue
+        # Split into YAML documents on '---' boundary
+        docs = re.split(r'^---[ \t]*$', text, flags=re.MULTILINE)
 
-    # An empty line — keep going
-    if not stripped:
-        continue
+        for doc in docs:
+            # Collect only non-commented, non-empty lines
+            active = [l for l in doc.splitlines()
+                      if l.strip() and not l.lstrip().startswith('#')]
+            if not active:
+                continue
 
-    # If we dedent back to top-level, we've left instances
-    if indent <= indent_instances and stripped and not stripped.startswith('#'):
-        in_instances = False
-        continue
+            kind = name = ns = ''
+            for line in active:
+                if re.match(r'^kind:\s*\S', line) and not kind:
+                    kind = line.split(':', 1)[1].strip()
+                elif re.match(r'^  name:\s*\S', line) and not name:
+                    name = line.split(':', 1)[1].strip()
+                elif re.match(r'^  namespace:\s*\S', line) and not ns:
+                    ns = line.split(':', 1)[1].strip()
 
-    # New instance entry: exactly 2 spaces deeper than "instances:"
-    if indent == indent_instances + 2 and stripped.endswith(':') and not stripped.startswith('#'):
-        current_entry = stripped[:-1]
-        entry_indent = indent
-        entries[current_entry] = {}
-        continue
-
-    if current_entry and indent > entry_indent:
-        if m := re.match(r'kind:\s*(\S+)', stripped):
-            entries[current_entry]['kind'] = m.group(1)
-        if m := re.match(r'namespace:\s*(\S+)', stripped):
-            # Only capture the top-level namespace (not spec.namespace)
-            if 'namespace' not in entries[current_entry]:
-                entries[current_entry]['namespace'] = m.group(1)
-
-for name, info in entries.items():
-    kind = info.get('kind', '')
-    ns   = info.get('namespace', '')
-    if kind and ns:
-        print(f"{kind}|{name}|{ns}")
+            if kind and name and ns:
+                print(f"{kind}|{name}|{ns}")
 PYEOF
 }
 
-# ── Helper: derive unique namespaces from infrastructure.yaml ─────────────────
+# ── Helper: derive unique namespaces from infrastructure/ and tests/ ──────────
 discover_namespaces() {
   discover_instances | awk -F'|' '{print $3}' | sort -u
 }
@@ -440,17 +429,17 @@ section_ack_controllers() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECTION 3 — Active KRO Instances (auto-discovered from infrastructure.yaml)
+# SECTION 3 — Active KRO Instances (auto-discovered from infrastructure/ and tests/)
 # ─────────────────────────────────────────────────────────────────────────────
 section_instances() {
   log_banner "SECTION 3 — KRO Instance Status"
-  log_info "Auto-discovering instances from cluster-fleet/local-aws-dev/infrastructure.yaml"
+  log_info "Auto-discovering instances from cluster-fleet/local-aws-dev/{infrastructure,tests}/"
 
   local entries
   readarray -t entries < <(discover_instances)
 
   if [[ ${#entries[@]} -eq 0 ]]; then
-    log_warn "No active instances found in ${INFRA_FILE}"
+    log_warn "No active instances found in ${INFRA_DIR}/infrastructure/ or ${INFRA_DIR}/tests/"
   fi
 
   local found_any=0
@@ -502,7 +491,7 @@ section_ack_resources() {
   readarray -t namespaces < <(discover_namespaces)
 
   if [[ ${#namespaces[@]} -eq 0 ]]; then
-    log_warn "No namespaces found — check ${INFRA_FILE}"
+    log_warn "No namespaces found — check ${INFRA_DIR}"
     return
   fi
 
@@ -680,7 +669,7 @@ main() {
   echo -e "  ${_CLR_WHT}Cluster:${_CLR_RST}    ${KIND_CLUSTER_NAME:-gen3-local}"
   echo -e "  ${_CLR_WHT}KUBECONFIG:${_CLR_RST} ${KUBECONFIG:-~/.kube/config}"
   echo -e "  ${_CLR_WHT}Addons:${_CLR_RST}     ${ADDONS_FILE}"
-  echo -e "  ${_CLR_WHT}Instances:${_CLR_RST}  ${INFRA_FILE}"
+  echo -e "  ${_CLR_WHT}Instances:${_CLR_RST}  ${INFRA_DIR}/{infrastructure,tests}/"
   echo -e "  ${_CLR_WHT}Filter:${_CLR_RST}     ns=${FILTER_NS:-*}  instance=${FILTER_INSTANCE:-*}  section=${FILTER_SECTION:-all}"
   echo ""
 
@@ -691,10 +680,34 @@ main() {
   fi
 
   case "${FILTER_SECTION}" in
-    kro)       section_kro ;;
-    ack)       section_ack_controllers; section_ack_resources ;;
-    argocd)    section_argocd ;;
-    instances) section_instances ;;
+    kro)
+      section_kro
+      print_empty_section "SECTION 2 — ACK Controllers"
+      print_empty_section "SECTION 3 — KRO Instance Status"
+      print_empty_section "SECTION 4 — ACK-Managed AWS Resources (by namespace)"
+      print_empty_section "SECTION 5 — ArgoCD Application Health"
+      ;;
+    ack)
+      print_empty_section "SECTION 1 — KRO Controller"
+      section_ack_controllers
+      print_empty_section "SECTION 3 — KRO Instance Status"
+      section_ack_resources
+      print_empty_section "SECTION 5 — ArgoCD Application Health"
+      ;;
+    instances)
+      print_empty_section "SECTION 1 — KRO Controller"
+      print_empty_section "SECTION 2 — ACK Controllers"
+      section_instances
+      print_empty_section "SECTION 4 — ACK-Managed AWS Resources (by namespace)"
+      print_empty_section "SECTION 5 — ArgoCD Application Health"
+      ;;
+    argocd)
+      print_empty_section "SECTION 1 — KRO Controller"
+      print_empty_section "SECTION 2 — ACK Controllers"
+      print_empty_section "SECTION 3 — KRO Instance Status"
+      print_empty_section "SECTION 4 — ACK-Managed AWS Resources (by namespace)"
+      section_argocd
+      ;;
     "")
       section_kro
       section_ack_controllers
@@ -709,9 +722,7 @@ main() {
 
   sep
   log_success "Report complete."
-  if [[ -n "${FILE_OUT}" ]]; then
-    log_info "Output written to: ${FILE_OUT}"
-  fi
+  log_info "Output written to: ${FILE_OUT}"
 }
 
 main "$@"

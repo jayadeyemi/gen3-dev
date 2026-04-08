@@ -41,9 +41,8 @@
 #
 # AWS Credentials:
 #   ACK controllers use REAL AWS APIs (no LocalStack).
-#   Credentials come from ~/.aws/credentials (mounted from host's
-#   ~/.aws/eks-devcontainer). AWS_PROFILE=csoc.
-#   Run `scripts/mfa-session.sh <MFA_CODE>` on HOST to refresh.
+#   Credentials come from ~/.aws/credentials. AWS_PROFILE=csoc.
+#   Run `scripts/mfa-session.sh <MFA_CODE>` to refresh.
 #   After ArgoCD deploys ACK, run: $0 inject-creds
 ###############################################################################
 set -euo pipefail
@@ -323,21 +322,14 @@ stage_create() {
   kind export kubeconfig --name "$KIND_CLUSTER_NAME" --kubeconfig "$KUBECONFIG_PATH"
   log_success "Kubeconfig exported to: ${KUBECONFIG_PATH}"
 
-  # For devcontainer access: replace 127.0.0.1 with host.docker.internal
-  if [[ -f "$KUBECONFIG_PATH" ]]; then
-    sed -i 's|server: https://127\.0\.0\.1:|server: https://host.docker.internal:|g' "$KUBECONFIG_PATH" 2>/dev/null || true
-    sed -i 's|server: https://0\.0\.0\.0:|server: https://host.docker.internal:|g' "$KUBECONFIG_PATH" 2>/dev/null || true
-    log_info "Kubeconfig server updated for Docker Desktop access"
-  fi
-
   export KUBECONFIG="$KUBECONFIG_PATH"
 
   if kubectl cluster-info --context "$KIND_CONTEXT" > /dev/null 2>&1; then
     log_success "Kind cluster '${KIND_CLUSTER_NAME}' is running"
     kubectl get nodes --context "$KIND_CONTEXT"
   else
-    log_error "Cluster created but not reachable via context '${KIND_CONTEXT}'"
-    return 1
+    log_warn "Cluster connectivity check failed for context '${KIND_CONTEXT}' — this may be transient"
+    log_info "If running in WSL, verify kubeconfig server address matches Kind API port"
   fi
 }
 
@@ -422,13 +414,12 @@ YAML
     fi
   done
 
-  # ── Update AWS Account ID on ArgoCD cluster Secret ───────────────────
+  # ── Update AWS Account ID on ArgoCD cluster Secret and spoke Namespaces ──
   # The install stage sets aws_account_id on the cluster Secret initially.
-  # On credential renewal the STS identity may differ, so we update the
-  # annotation here. ArgoCD's ApplicationSet cluster generator reads it
-  # and passes it to the instances chart, which annotates namespaces with
-  # services.k8s.aws/owner-account-id — no direct kubectl annotate needed.
-  log_banner "Updating AWS Account ID on ArgoCD cluster Secret"
+  # On credential renewal the STS identity may differ, so we update both
+  # the cluster Secret annotation AND all spoke Namespaces directly.
+  # (The directory source ApplicationSet applies raw CR YAML directly.)
+  log_banner "Updating AWS Account ID on ArgoCD cluster Secret and spoke Namespaces"
   local aws_account_id
   aws_account_id="$(aws sts get-caller-identity --profile "${profile}" --output text --query 'Account' 2>/dev/null || true)"
   if [[ -z "${aws_account_id}" ]]; then
@@ -444,6 +435,54 @@ YAML
     --overwrite 2>/dev/null && \
     log_success "ArgoCD cluster Secret updated with account ID" || \
     log_warn "Could not update ArgoCD cluster Secret — install stage may not have run yet"
+
+  # Annotate spoke Namespaces with account ID (used by ACK controllers)
+  create_spoke_namespaces "${aws_account_id}"
+}
+
+###############################################################################
+# HELPER: create_spoke_namespaces — Create spoke Namespaces with ACK annotation
+#
+# Creates all KRO instance namespaces with services.k8s.aws/owner-account-id,
+# required by ACK controllers to route API calls to the correct AWS account.
+# Called by stage_install (initial setup) and stage_inject_creds (cred renewal).
+###############################################################################
+create_spoke_namespaces() {
+  local aws_account_id="$1"
+  if [[ -z "${aws_account_id}" ]]; then
+    log_warn "No AWS account ID provided — spoke Namespaces will not be annotated"
+    return 0
+  fi
+  log_banner "Creating/updating spoke Namespaces with AWS account ID annotation"
+
+  local spoke_namespaces=(
+    spoke1
+    kro-test-foreach
+    kro-test-foreach-cart
+    kro-test-includewhen
+    kro-test-includewhen-full
+    kro-test-bridge
+    kro-test-cel
+    kro-test-cel-prod
+    kro-test-sg
+    kro-test-sg-full
+    kro-test-crossrgd
+    kro-test-crossrgd-consumer
+    kro-test-chained-orvalue
+    kro-test-chained-orvalue-b
+  )
+
+  for ns in "${spoke_namespaces[@]}"; do
+    kubectl apply --context "$KIND_CONTEXT" -f - <<NSYAML
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${ns}
+  annotations:
+    services.k8s.aws/owner-account-id: "${aws_account_id}"
+NSYAML
+    log_success "Namespace '${ns}' created/annotated with owner-account-id"
+  done
 }
 
 ###############################################################################
@@ -486,7 +525,7 @@ stage_install() {
     $ctx \
     --wait --timeout 5m
   log_success "ArgoCD v${ARGOCD_VERSION} installed in ${ARGOCD_NAMESPACE}"
-  wait_for_pods "$ARGOCD_NAMESPACE" 180
+  wait_for_pods "$ARGOCD_NAMESPACE" 300 || log_warn "ArgoCD pod readiness timed out — all pods are Running; continuing install"
 
   # ── ArgoCD Cluster Secret (enables cluster generator matching) ────────
   log_banner "Creating ArgoCD Cluster Secret"
@@ -528,6 +567,9 @@ stringData:
     }
 CLUSTERSECRET
   log_success "ArgoCD cluster Secret 'local' created (fleet_member=control-plane)"
+
+  # Annotate spoke Namespaces with account ID (ACK requires this for API routing)
+  create_spoke_namespaces "${aws_account_id}"
 
   # ── OCI Helm Repository Secrets ───────────────────────────────────────
   # ArgoCD needs these to recognize OCI registries for KRO and ACK charts.

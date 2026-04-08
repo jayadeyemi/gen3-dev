@@ -1,7 +1,7 @@
-# AwsGen3Database2 — Tier 1: Database (Modular RGD v2)
+# AwsGen3Database1 — Tier 1: Database (Modular RGD v1)
 #
 # Thin Aurora PostgreSQL tier. All networking, encryption, and security group
-# resources are pre-provisioned by Foundation2 (Tier 0) with databaseEnabled=true.
+# resources are pre-provisioned by Foundation1 (Tier 0) with databaseEnabled=true.
 #
 # Per Plan 02 Revision 4, this tier creates ONLY:
 #   Database:   1 Aurora PostgreSQL Serverless v2 cluster + 1 writer instance
@@ -9,7 +9,7 @@
 #   Bridge:     1 optional databaseBridge ConfigMap with Aurora endpoints
 #
 # PREREQUISITES:
-#   1. Foundation2 deployed with databaseEnabled=true (creates databasePrepBridge)
+#   1. Foundation1 deployed with databaseEnabled=true (creates databasePrepBridge)
 #   2. K8s Secret containing Aurora master password must exist in the
 #      Database namespace BEFORE deploying this tier.
 #      Example:
@@ -22,14 +22,14 @@
 apiVersion: kro.run/v1alpha1
 kind: ResourceGraphDefinition
 metadata:
-  name: awsgen3database2
+  name: awsgen3database1
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     argocd.argoproj.io/sync-wave: "0"
 spec:
   schema:
     apiVersion: v1alpha1
-    kind: AwsGen3Database2
+    kind: AwsGen3Database1
     spec:
       # ── Identity ──────────────────────────────────────────────────
       name: string | required=true
@@ -40,7 +40,7 @@ spec:
       adoptionPolicy: string | default="adopt-or-create"
       deletionPolicy: string | default="delete"
 
-      # ── Bridge References (from Foundation2) ─────────────────────
+      # ── Bridge References (from Foundation1) ─────────────────────
       databasePrepBridgeName: string | required=true
       foundationNamespace: string | required=true
 
@@ -77,7 +77,7 @@ spec:
         metadata:
           name: ${schema.spec.namespace}
 
-    # ── Database Prep Bridge (from Foundation2) ──────────────────────
+    # ── Database Prep Bridge (from Foundation1) ──────────────────────
     - id: databasePrepBridge
       readyWhen:
         - ${databasePrepBridge.metadata.?name.orValue('null') != 'null'}

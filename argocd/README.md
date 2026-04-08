@@ -15,49 +15,54 @@ kind-local-test.sh install
   └─ Applies bootstrap ApplicationSets
        └─ local-addons → application-sets chart
             └─ KRO controller (wave -30)
-            └─ ACK controllers ×7 (wave 1)
+            └─ ACK controllers ×9 (wave 1)
             └─ kro-local-rgs RGDs (wave 10)
-       └─ local-infra-instances → instances chart
-            └─ KRO instances (wave 15-30)
+       └─ local-infra-instances → directory source
+            └─ KRO instances (wave 30)
 ```
 
 ## Directory Structure
 
 ```
 argocd/
-├── addons/local/addons.yaml        # Component definitions (KRO, ACK ×7, RGDs)
+├── addons/local/addons.yaml        # Component definitions (KRO, ACK ×9, RGDs)
 ├── bootstrap/
 │   ├── local-addons.yaml           # Bootstrap ApplicationSet for addons
 │   └── local-infra-instances.yaml  # Bootstrap ApplicationSet for instances
 ├── charts/
 │   ├── application-sets/           # Meta-chart: one ApplicationSet per addon
-│   ├── instances/                  # Renders KRO CRs from values
-│   └── resource-groups/            # RGD templates (4 production + 7 test)
+│   └── resource-groups/            # RGD templates (9 modular + 1 monolithic + 8 test)
 └── cluster-fleet/
     └── local-aws-dev/
-        ├── addons.yaml             # Cluster-level addon overrides
-        └── infrastructure.yaml     # Instance values (test + foundation)
+        ├── infrastructure/         # Production KRO CR instances (one file per tier)
+        └── tests/                  # KRO capability test instances
 ```
 
 ## ResourceGraphDefinitions
 
-### Production RGDs
+### Modular RGDs (7-tier architecture)
+
+| Tier | RGD | Kind | Resources | Instantiated? |
+|------|-----|------|-----------|---------------|
+| 0 | awsgen3foundation1 | AwsGen3Foundation1 | 16 + bridge | **Yes** (~$37/mo) |
+| 1 | awsgen3database1 | AwsGen3Database1 | 9 + bridge | No (needs password Secret) |
+| 2 | awsgen3search1 | AwsGen3Search1 | 4 + bridge | No |
+| 3 | awsgen3compute2 | AwsGen3Compute2 | 3 + bridge | No (high cost) |
+| 4 | awsgen3appiam1 | AwsGen3AppIAM1 | TBD + bridge | No |
+| 5 | awsgen3helm1 | AwsGen3Helm1 | TBD | No |
+| 6 | awsgen3observability1 | AwsGen3Observability1 | TBD | No |
+
+### Monolithic RGD (reference)
 
 | RGD | Kind | Resources | Instantiated? |
 |-----|------|-----------|---------------|
 | awsgen3infra1flat | AwsGen3Infra1Flat | 31+ | No (CRD only) |
-| awsgen3base1flat | AwsGen3Base1Flat | 15 | No (CRD only) |
-| awsgen3network1flat | AwsGen3Network1Flat | 9 | No (CRD only) |
-| awsgen3test1flat | AwsGen3Test1Flat | 24 | **Yes** (~$37/mo) |
-| awsgen3foundation1 | AwsGen3Foundation1 | 16 + bridge | **Yes** (~$37/mo) |
-| awsgen3database1 | AwsGen3Database1 | 9 + bridge | No (needs password Secret) |
-| awsgen3compute1 | AwsGen3Compute1 | 6 + bridge | No (high cost) |
 
-### Capability Test RGDs (Tests 1-7b)
+### Capability Test RGDs (Tests 1-8)
 
-7 test RGDs validating KRO features: forEach, includeWhen, bridge ConfigMap,
-externalRef, CEL expressions, multi-SG Pattern A, and cross-RGD status flow.
-See `charts/resource-groups/README.md` for details.
+8 test RGDs validating KRO features: forEach, includeWhen, bridge ConfigMap,
+externalRef, CEL expressions, multi-SG Pattern A, cross-RGD status flow,
+and chained orValue. See `charts/resource-groups/README.md` for details.
 
 ## Auto-Sync Configuration
 

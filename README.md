@@ -81,14 +81,14 @@ Installed in sync-wave order (matching gen3-kro's ArgoCD addons):
 
 | Wave | Component | Version | Purpose |
 |------|-----------|---------|---------|
-| -30 | KRO | 0.8.5 | Graph-based resource orchestrator |
-| 1 | ACK ec2 | 1.9.2 | EC2 controller → real AWS |
-| 1 | ACK eks | 1.11.1 | EKS controller → real AWS |
-| 1 | ACK iam | 1.6.1 | IAM controller → real AWS |
-| 1 | ACK kms | 1.2.1 | KMS controller → real AWS |
-| 1 | ACK rds | 1.7.6 | RDS controller → real AWS |
-| 1 | ACK s3 | 1.3.1 | S3 controller → real AWS |
-| 1 | ACK secretsmanager | 1.2.1 | SecretsManager controller → real AWS |
+| -30 | KRO | 0.9.0 | Graph-based resource orchestrator |
+| 1 | ACK ec2 | 1.10.1 | EC2 controller → real AWS |
+| 1 | ACK eks | 1.12.0 | EKS controller → real AWS |
+| 1 | ACK iam | 1.6.2 | IAM controller → real AWS |
+| 1 | ACK kms | 1.2.2 | KMS controller → real AWS |
+| 1 | ACK rds | 1.7.7 | RDS controller → real AWS |
+| 1 | ACK s3 | 1.3.2 | S3 controller → real AWS |
+| 1 | ACK secretsmanager | 1.2.2 | SecretsManager controller → real AWS |
 | 5 | ArgoCD | 7.7.16 | GitOps delivery |
 | 10 | RGDs | — | ResourceGraphDefinition chart |
 

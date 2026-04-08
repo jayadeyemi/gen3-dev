@@ -8,9 +8,9 @@
 # resources (ArgoCD Application + ConfigMap). No ACK controllers needed.
 #
 # PREREQUISITES:
-#   1. Foundation2 deployed with foundationBridge
-#   2. Compute2 deployed with computeBridge
-#   3. (Optional) Database2 with databaseBridge
+#   1. Foundation1 deployed with foundationBridge
+#   2. Compute1 deployed with computeBridge
+#   3. (Optional) Database1 with databaseBridge
 #   4. (Optional) AppIAM1 with appIAMBridge
 #
 # OUTPUT: ArgoCD Application CR targeting gen3-helm chart + gen3HelmBridge.

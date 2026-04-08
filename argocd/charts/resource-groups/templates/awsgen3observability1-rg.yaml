@@ -13,8 +13,8 @@
 # resources (ArgoCD Applications + ConfigMap). No ACK controllers needed.
 #
 # PREREQUISITES:
-#   1. Foundation2 deployed with foundationBridge
-#   2. Compute2 deployed with computeBridge
+#   1. Foundation1 deployed with foundationBridge
+#   2. Compute1 deployed with computeBridge
 #
 # OUTPUT: observabilityBridge ConfigMap with deployed component info.
 

@@ -1,4 +1,4 @@
-# AwsGen3Foundation2 — Tier 0: Foundation-Heavy (Modular RGD v2)
+# AwsGen3Foundation1 — Tier 0: Foundation-Heavy (Modular RGD v1)
 #
 # Foundation-heavy architecture with feature flags. Absorbs ALL prep
 # infrastructure (SGs, IAM roles, DB subnets, KMS keys) behind
@@ -30,20 +30,20 @@
 # Creates up to 4 bridge ConfigMaps: foundationBridge (always) +
 # databasePrepBridge, computePrepBridge, searchPrepBridge (conditional).
 #
-# Downstream tiers (Database2, Compute2, Search1) are thin — they read
+# Downstream tiers (Database1, Compute1, Search1) are thin — they read
 # the per-capability prep bridges via externalRef.
 
 apiVersion: kro.run/v1alpha1
 kind: ResourceGraphDefinition
 metadata:
-  name: awsgen3foundation2
+  name: awsgen3foundation1
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     argocd.argoproj.io/sync-wave: "0"
 spec:
   schema:
     apiVersion: v1alpha1
-    kind: AwsGen3Foundation2
+    kind: AwsGen3Foundation1
     spec:
       # ── Identity ──────────────────────────────────────────────────
       name: string | required=true

@@ -1,3 +1,0 @@
-# Cluster-level addon overrides for the local Kind cluster.
-# Values here merge with addons/local/addons.yaml.
-# Currently empty — all addon config lives in the base addons file.

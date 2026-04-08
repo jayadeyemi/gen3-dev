@@ -46,7 +46,7 @@ self-managed-kro:
     argocd.argoproj.io/sync-wave: "-30"
   chartName: kro
   chartRepository: 'registry.k8s.io/kro/charts'
-  defaultVersion: "0.8.5"
+  defaultVersion: "0.9.0"
   selector:
     matchExpressions:
       - key: fleet_member
@@ -90,7 +90,7 @@ ack-ec2:
   namespace: ack
   chartName: ec2-chart
   chartRepository: "public.ecr.aws/aws-controllers-k8s"
-  defaultVersion: "1.9.2"
+  defaultVersion: "1.10.1"
   annotationsAppSet:
     argocd.argoproj.io/sync-wave: "1"
   selector:
@@ -121,7 +121,7 @@ ack-eks:
   namespace: ack
   chartName: eks-chart
   chartRepository: "public.ecr.aws/aws-controllers-k8s"
-  defaultVersion: "1.11.1"
+  defaultVersion: "1.12.0"
   annotationsAppSet:
     argocd.argoproj.io/sync-wave: "1"
   selector:
@@ -152,7 +152,7 @@ ack-iam:
   namespace: ack
   chartName: iam-chart
   chartRepository: "public.ecr.aws/aws-controllers-k8s"
-  defaultVersion: "1.6.1"
+  defaultVersion: "1.6.2"
   annotationsAppSet:
     argocd.argoproj.io/sync-wave: "1"
   selector:
@@ -183,7 +183,7 @@ ack-kms:
   namespace: ack
   chartName: kms-chart
   chartRepository: "public.ecr.aws/aws-controllers-k8s"
-  defaultVersion: "1.2.1"
+  defaultVersion: "1.2.2"
   annotationsAppSet:
     argocd.argoproj.io/sync-wave: "1"
   selector:
@@ -214,7 +214,7 @@ ack-rds:
   namespace: ack
   chartName: rds-chart
   chartRepository: "public.ecr.aws/aws-controllers-k8s"
-  defaultVersion: "1.7.6"
+  defaultVersion: "1.7.7"
   annotationsAppSet:
     argocd.argoproj.io/sync-wave: "1"
   selector:
@@ -245,7 +245,7 @@ ack-s3:
   namespace: ack
   chartName: s3-chart
   chartRepository: "public.ecr.aws/aws-controllers-k8s"
-  defaultVersion: "1.3.1"
+  defaultVersion: "1.3.2"
   annotationsAppSet:
     argocd.argoproj.io/sync-wave: "1"
   selector:
@@ -276,7 +276,7 @@ ack-secretsmanager:
   namespace: ack
   chartName: secretsmanager-chart
   chartRepository: "public.ecr.aws/aws-controllers-k8s"
-  defaultVersion: "1.2.1"
+  defaultVersion: "1.2.2"
   annotationsAppSet:
     argocd.argoproj.io/sync-wave: "1"
   selector:
@@ -307,7 +307,7 @@ ack-opensearchservice:
   namespace: ack
   chartName: opensearchservice-chart
   chartRepository: "public.ecr.aws/aws-controllers-k8s"
-  defaultVersion: "1.2.2"
+  defaultVersion: "1.2.3"
   annotationsAppSet:
     argocd.argoproj.io/sync-wave: "1"
   selector:
@@ -338,7 +338,7 @@ ack-sqs:
   namespace: ack
   chartName: sqs-chart
   chartRepository: "public.ecr.aws/aws-controllers-k8s"
-  defaultVersion: "1.4.1"
+  defaultVersion: "1.4.2"
   annotationsAppSet:
     argocd.argoproj.io/sync-wave: "1"
   selector:

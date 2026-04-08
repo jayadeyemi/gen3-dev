@@ -9,7 +9,7 @@ spec:
   # ─────────────────────────────────────────────────────────────────────
   # AwsGen3Search1 — Tier 2: Thin Search (OpenSearch Only)
   #
-  # Creates an OpenSearch domain using prep resources from Foundation2.
+  # Creates an OpenSearch domain using prep resources from Foundation1.
   # Foundation must have searchEnabled=true so searchPrepBridge exists.
   # ACK opensearchservice controller must be installed.
   #

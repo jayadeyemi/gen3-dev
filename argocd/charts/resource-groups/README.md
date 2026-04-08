@@ -10,14 +10,11 @@ KRO RGDs for the gen3-dev local CSOC. Deployed by ArgoCD via `kro-local-rgs` (wa
 
 ## Production RGDs
 
-### Monolithic (legacy/reference)
+### Monolithic (reference only)
 
 | RGD | Kind | Resources | Cost | Instantiated? |
 |-----|------|-----------|------|---------------|
 | `awsgen3infra1flat` | AwsGen3Infra1Flat | 31+ | ~$100+/mo | No (CRD only) |
-| `awsgen3base1flat` | AwsGen3Base1Flat | 15 | ~$5/mo | No (CRD only) |
-| `awsgen3network1flat` | AwsGen3Network1Flat | 9 | ~$37/mo | No (CRD only) |
-| `awsgen3test1flat` | AwsGen3Test1Flat | 24 | ~$37/mo | **Yes** |
 
 ### Modular (7-tier architecture, Plan 02)
 
@@ -25,7 +22,8 @@ KRO RGDs for the gen3-dev local CSOC. Deployed by ArgoCD via `kro-local-rgs` (wa
 |------|-----|------|-----------|------|---------------|
 | 0 | `awsgen3foundation1` | AwsGen3Foundation1 | 16 + bridge | ~$37/mo | **Yes** |
 | 1 | `awsgen3database1` | AwsGen3Database1 | 9 + bridge | ~$45-350/mo | No (needs password Secret) |
-| 3 | `awsgen3compute1` | AwsGen3Compute1 | 6 + bridge | ~$350/mo | No (high cost) |
+| 3 | `awsgen3compute1` | AwsGen3Compute1 | 6 + bridge | ~$350/mo | No (v1, see compute2) |
+| 3 | `awsgen3compute2` | AwsGen3Compute2 | 3 + bridge | ~$350/mo | No (high cost) |
 
 Cross-tier data flows via **bridge ConfigMaps** (not Secrets). Consumer tiers
 read the bridge via `externalRef` (validated by KRO capability Tests 3/4/7).
@@ -43,7 +41,7 @@ read the bridge via `externalRef` (validated by KRO capability Tests 3/4/7).
 | 7a | KroTest07Producer | `krotest07a-cross-rgd-producer-rg.yaml` | Yes | Cross-RGD bridge with real ACK |
 | 7b | KroTest07Consumer | `krotest07b-cross-rgd-consumer-rg.yaml` | Yes | SG-to-SG via bridge + externalRef |
 
-Test instances are defined in `cluster-fleet/local-aws-dev/infrastructure.yaml`.
+Test instances are defined in `cluster-fleet/local-aws-dev/tests/`.
 
 ## Modifying RGDs
 

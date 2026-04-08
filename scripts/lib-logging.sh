@@ -38,7 +38,8 @@ wait_for_pods() {
   local ns="$1"
   local timeout="${2:-300}"
   log_info "Waiting for pods in namespace '$ns' (timeout: ${timeout}s)..."
-  if kubectl wait --for=condition=Ready pods --all -n "$ns" --timeout="${timeout}s" 2>/dev/null; then
+  if kubectl wait --for=condition=Ready pods --all -n "$ns" --timeout="${timeout}s" \
+    --field-selector='status.phase!=Succeeded,status.phase!=Failed' 2>/dev/null; then
     log_success "All pods in '$ns' are Ready"
     return 0
   else

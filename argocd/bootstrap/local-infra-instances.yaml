@@ -2,12 +2,17 @@
 # local-infra-instances — KRO infrastructure instances for gen3-dev
 # ======================================================================
 # Mirrors gen3-kro's fleet-infra-instances.yaml pattern.
-# Renders the instances chart using cluster-fleet/local-aws-dev/infrastructure.yaml
-# to create KRO Custom Resources (the test graph instance).
+# Applies raw KRO Custom Resource YAMLs directly from two directories:
+#   cluster-fleet/<cluster>/infrastructure/  — production RGD instances
+#   cluster-fleet/<cluster>/tests/           — KRO capability test instances
 #
-# In gen3-kro, this uses fleet_member: fleet-spoke-infra to match per-spoke
-# cluster secrets created by Terraform. In gen3-dev, we reuse the
-# control-plane cluster since everything runs on one Kind cluster.
+# Each instance is a standalone YAML file. ArgoCD uses directory source
+# to apply raw KRO CR YAML directly.
+#
+# NAMESPACE PREREQUISITE: Spoke namespaces (e.g. 'spoke1' for infrastructure,
+# 'kro-test-sg' for real-AWS tests) must exist with the
+# services.k8s.aws/owner-account-id annotation set.
+# This is handled by kind-local-test.sh (stage_install and stage_inject_creds).
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -32,21 +37,20 @@ spec:
     spec:
       project: default
       sources:
+      # Directory source 1: production infrastructure KRO CR instances
       - repoURL: '{{.metadata.annotations.addons_repo_url}}'
         targetRevision: '{{.metadata.annotations.addons_repo_revision}}'
-        ref: values
+        path: '{{.metadata.annotations.addons_repo_basepath}}cluster-fleet/{{.name}}/infrastructure/'
+        directory:
+          recurse: false
+          include: '*.yaml'
+      # Directory source 2: KRO capability test instances
       - repoURL: '{{.metadata.annotations.addons_repo_url}}'
-        path: '{{.metadata.annotations.addons_repo_basepath}}charts/instances/'
         targetRevision: '{{.metadata.annotations.addons_repo_revision}}'
-        helm:
-          releaseName: 'infrastructure-instance'
-          ignoreMissingValueFiles: true
-          valueFiles:
-            - '$values/{{.metadata.annotations.addons_repo_basepath}}cluster-fleet/{{.name}}/infrastructure.yaml'
-            - '$values/{{.metadata.annotations.addons_repo_basepath}}cluster-fleet/{{.name}}/tests.yaml'
-          parameters:
-            - name: awsAccountId
-              value: '{{.metadata.annotations.aws_account_id}}'
+        path: '{{.metadata.annotations.addons_repo_basepath}}cluster-fleet/{{.name}}/tests/'
+        directory:
+          recurse: false
+          include: '*.yaml'
       destination:
         namespace: argocd
         name: '{{.name}}'
